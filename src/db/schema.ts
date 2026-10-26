@@ -60,6 +60,8 @@ export const runs = pgTable(
     qlooCallCount: integer("qloo_call_count").default(0).notNull(),
     llmCallCount: integer("llm_call_count").default(0).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    // Set while a stage is running. A stage that never finishes can be reclaimed after a timeout.
+    stageStartedAt: timestamp("stage_started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     error: text("error"),
   },

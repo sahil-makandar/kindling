@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { getEnv } from "@/src/config/env";
 import { getDb } from "@/src/db/client";
+import { UserFacingError } from "@/src/lib/errors";
 import { createPacer } from "@/src/lib/pacer";
 import { createDbGeocodeStore, type GeocodeStore } from "./store";
 
@@ -15,7 +16,7 @@ export type GeocodeCandidate = { lat: number; lon: number; displayName: string }
 // alternatives.
 export type GeocodeResult = GeocodeCandidate & { alternatives: GeocodeCandidate[] };
 
-export class GeocodeError extends Error {
+export class GeocodeError extends UserFacingError {
   constructor(message: string) {
     super(message);
     this.name = "GeocodeError";

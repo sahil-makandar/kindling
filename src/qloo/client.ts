@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getEnv } from "@/src/config/env";
 import { getDb } from "@/src/db/client";
+import { UserFacingError } from "@/src/lib/errors";
 import { createPacer } from "@/src/lib/pacer";
 import { fixtureResponse } from "./fixtures";
 import { countResults } from "./schemas";
@@ -43,7 +44,7 @@ export type QlooResponse = {
 
 export type QlooGet = (path: string, params: QlooParams, ctx: QlooContext) => Promise<QlooResponse>;
 
-export class QlooError extends Error {
+export class QlooError extends UserFacingError {
   constructor(
     message: string,
     public readonly status: number,

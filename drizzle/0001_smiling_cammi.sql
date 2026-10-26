@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "stage_started_at" timestamp with time zone;
