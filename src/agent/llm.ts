@@ -51,6 +51,8 @@ export type LoopOptions = {
   trace?: Tracer;
   // How long the model may spend before the deterministic plan takes over. Default 30 s.
   budgetMs?: number;
+  // How long one model step may take, so a single stalled request cannot use up the whole budget. Default 15 s.
+  stepMs?: number;
 };
 
 export type LoopResult = { source: Exclude<LlmSource, "cache">; steps: number; provider?: string; model?: string };
@@ -72,6 +74,7 @@ type LoopCall = (args: {
   tools: ToolSet;
   maxSteps: number;
   signal: AbortSignal;
+  stepMs: number;
   onStep: () => void;
   providerOptions?: CallProviderOptions;
 }) => Promise<{ steps: number }>;
@@ -144,7 +147,17 @@ const defaultStructured: StructuredCall = async ({
   return output;
 };
 
-const defaultLoop: LoopCall = async ({ model, system, prompt, tools, maxSteps, signal, onStep, providerOptions }) => {
+const defaultLoop: LoopCall = async ({
+  model,
+  system,
+  prompt,
+  tools,
+  maxSteps,
+  signal,
+  stepMs,
+  onStep,
+  providerOptions,
+}) => {
   const result = await generateText({
     model,
     system,
@@ -153,6 +166,7 @@ const defaultLoop: LoopCall = async ({ model, system, prompt, tools, maxSteps, s
     stopWhen: stepCountIs(maxSteps),
     maxRetries: 2,
     abortSignal: signal,
+    timeout: { stepMs },
     providerOptions,
     onStepFinish: () => onStep(),
   });
@@ -289,6 +303,7 @@ export function createLlm(deps: LlmDeps) {
           tools,
           maxSteps: opts.maxSteps,
           signal: AbortSignal.timeout(Math.max(1, deadline - now())),
+          stepMs: opts.stepMs ?? 15_000,
           providerOptions: handle.providerOptions,
           onStep: () => {
             steps += 1;

@@ -17,6 +17,8 @@ export function createDbVenueRepo(db: Db): Pick<LocatorDeps, "getVenue" | "saveM
         lat: row.lat,
         lon: row.lon,
         venueType: row.venueType,
+        qlooEntityId: row.qlooEntityId,
+        qlooEntityName: row.qlooEntityName,
       };
     },
 

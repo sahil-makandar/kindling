@@ -1,5 +1,5 @@
 import { QlooError } from "./client";
-import type { Endpoints, GeoArea } from "./endpoints";
+import type { AreaSpec, Endpoints, GeoArea } from "./endpoints";
 import { placeCoordinates, type QlooEntity, type QlooHeatPoint, type QlooTag } from "./schemas";
 import type { QlooContext } from "./client";
 
@@ -24,6 +24,8 @@ export type TagResult = {
   fallbackReason?: string;
   warnings: string[];
   callId: string | null;
+  // Qloo requests this lookup actually sent, including a failed first attempt. The Scout spends its budget on this.
+  qlooCalls: number;
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -59,29 +61,35 @@ async function tryUnlisted<T extends { empty: boolean }>(
   type: string,
   attempt: () => Promise<T>,
   what: string,
-): Promise<{ ok: T } | { reason: string }> {
-  if (isUnsupported(type)) return { reason: `Qloo does not offer ${what} for this key.` };
+): Promise<{ ok: T } | { reason: string; attempted: boolean }> {
+  if (isUnsupported(type)) return { reason: `Qloo does not offer ${what} for this key.`, attempted: false };
   try {
     const result = await attempt();
     if (!result.empty) return { ok: result };
-    return { reason: `Qloo returned no ${what}.` };
+    return { reason: `Qloo returned no ${what}.`, attempted: true };
   } catch (error) {
     if (!(error instanceof QlooError)) throw error;
     if (error.status === 403) markUnsupported(type);
-    return { reason: `Qloo could not give us ${what} (${error.message})` };
+    return { reason: `Qloo could not give us ${what} (${error.message})`, attempted: true };
   }
 }
 
 // The area's tag vocabulary for the Scout. The fallback uses the entities already fetched for the area.
 export async function areaTags(
   api: TagApi,
-  args: { area: GeoArea; areaEntities: QlooEntity[]; take?: number },
+  args: { area: AreaSpec; areaEntities: QlooEntity[]; take?: number },
   ctx: QlooContext,
 ): Promise<TagResult> {
   const take = args.take ?? 30;
   const primary = await tryUnlisted(TAG_TYPE, () => api.insightsTags({ signalArea: args.area, take }, ctx), "area tags");
   if ("ok" in primary) {
-    return { tags: primary.ok.items, source: "qloo_tags", warnings: primary.ok.warnings, callId: primary.ok.callId };
+    return {
+      tags: primary.ok.items,
+      source: "qloo_tags",
+      warnings: primary.ok.warnings,
+      callId: primary.ok.callId,
+      qlooCalls: 1,
+    };
   }
   return {
     tags: tagsFromEntities(args.areaEntities, "affinity", take),
@@ -89,6 +97,7 @@ export async function areaTags(
     fallbackReason: `${primary.reason} Reading the tags carried by the area's top results instead.`,
     warnings: [],
     callId: null,
+    qlooCalls: primary.attempted ? 1 : 0,
   };
 }
 
@@ -107,16 +116,24 @@ export async function tagsForFavourites(
     "a taste profile",
   );
   if ("ok" in primary) {
-    return { tags: primary.ok.items, source: "qloo_tags", warnings: primary.ok.warnings, callId: primary.ok.callId };
+    return {
+      tags: primary.ok.items,
+      source: "qloo_tags",
+      warnings: primary.ok.warnings,
+      callId: primary.ok.callId,
+      qlooCalls: 1,
+    };
   }
 
   let entities = args.knownEntities;
   let callId: string | null = null;
+  let qlooCalls = primary.attempted ? 1 : 0;
   const warnings: string[] = [];
   if (!entities || entities.length === 0) {
     const fetched = await api.getEntities(args.favouriteIds, ctx);
     entities = fetched.items;
     callId = fetched.callId;
+    qlooCalls += 1;
     warnings.push(...fetched.warnings);
   }
   return {
@@ -125,6 +142,7 @@ export async function tagsForFavourites(
     fallbackReason: `${primary.reason} Using the favourites' own tags instead.`,
     warnings,
     callId,
+    qlooCalls,
   };
 }
 

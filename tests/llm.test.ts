@@ -315,6 +315,20 @@ describe("runToolLoop", () => {
     expect(store.calls.get(run.id)).toBe(3);
   });
 
+  it("limits each step as well as the whole loop", async () => {
+    const seen: number[] = [];
+    const { llm } = setup([], {
+      callLoop: async ({ stepMs, onStep }) => {
+        seen.push(stepMs);
+        onStep();
+        return { steps: 1 };
+      },
+    });
+    await llm.runToolLoop(tools, "sys", { ...loopOptions(vi.fn(async () => undefined)), stepMs: 9000 });
+    await llm.runToolLoop(tools, "sys", loopOptions(vi.fn(async () => undefined)));
+    expect(seen).toEqual([9000, 15000]);
+  });
+
   it("tries the next provider when the first fails before doing anything", async () => {
     const used: string[] = [];
     const { llm, repo, run } = setup([], {

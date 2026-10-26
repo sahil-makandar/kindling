@@ -14,6 +14,9 @@ export type VenueInput = {
   lat: number;
   lon: number;
   venueType: string;
+  // Set once the Locator has found the venue in Qloo.
+  qlooEntityId?: string | null;
+  qlooEntityName?: string | null;
 };
 
 export type VenueMatch = { id: string; name: string; category: string | null };

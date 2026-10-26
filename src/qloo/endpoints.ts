@@ -20,6 +20,10 @@ export type EntityDomain = "artist" | "movie" | "tv_show" | "book" | "podcast" |
 // Radius unit is assumed to be metres until the live spike confirms it (docs/QLOO_API.md section 7, question 1).
 export type GeoArea = { lon: number; lat: number; radiusM: number };
 
+// An area is a point with a radius, or, as the last resort when data is thin, a whole city by name.
+// Neighbourhood names do not work as city queries (docs/QLOO_API.md section 4), so only use this with a city.
+export type AreaSpec = GeoArea | { city: string };
+
 export type EndpointResult<T> = Parsed<T> & {
   callId: string | null;
   cached: boolean;
@@ -37,8 +41,9 @@ export function pointWkt(lon: number, lat: number): string {
 
 const entityType = (domain: EntityDomain) => `urn:entity:${domain}`;
 
-function withArea(prefix: "signal" | "filter", area: GeoArea | undefined): QlooParams {
+function withArea(prefix: "signal" | "filter", area: AreaSpec | undefined): QlooParams {
   if (!area) return {};
+  if ("city" in area) return { [`${prefix}.location.query`]: area.city };
   return {
     [`${prefix}.location`]: pointWkt(area.lon, area.lat),
     [`${prefix}.location.radius`]: Math.round(area.radiusM),
@@ -47,10 +52,10 @@ function withArea(prefix: "signal" | "filter", area: GeoArea | undefined): QlooP
 
 export type InsightsEntitiesArgs = {
   domain: EntityDomain;
-  signalArea?: GeoArea;
+  signalArea?: AreaSpec;
   signalEntities?: string[];
   signalTags?: string[];
-  filterArea?: GeoArea;
+  filterArea?: AreaSpec;
   trending?: boolean;
   excludeEntities?: string[];
   take?: number;
@@ -59,12 +64,12 @@ export type InsightsEntitiesArgs = {
 export type ScoreListArgs = {
   domain: EntityDomain;
   entityIds: string[];
-  signalArea?: GeoArea;
+  signalArea?: AreaSpec;
   signalEntities?: string[];
 };
 
 export type InsightsTagsArgs = {
-  signalArea?: GeoArea;
+  signalArea?: AreaSpec;
   signalEntities?: string[];
   take?: number;
 };
