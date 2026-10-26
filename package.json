@@ -11,11 +11,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "check": "npm run typecheck && npm run lint && npm run lint:copy && npm test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed-demo": "node -e \"console.log('db:seed-demo: not yet')\"",
     "qloo:spike": "node -e \"console.log('qloo:spike: not yet')\"",
-    "lint:copy": "node -e \"console.log('lint:copy: not yet')\"",
+    "lint:copy": "tsx scripts/lint-copy.ts",
     "db:smoke": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/db-smoke.ts"
   },
   "dependencies": {
