@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getEnv } from "@/src/config/env";
 import { getDb } from "@/src/db/client";
+import { createPacer } from "@/src/lib/pacer";
 import { fixtureResponse } from "./fixtures";
 import { countResults } from "./schemas";
 import { createDbStore, type QlooStore } from "./store";
@@ -103,17 +104,7 @@ export function createQlooClient(deps: QlooClientDeps): { get: QlooGet } {
   const record = deps.record ?? writeRecording;
 
   // One request every paceMs, in the order they were asked for.
-  let queue: Promise<void> = Promise.resolve();
-  let lastStart = Number.NEGATIVE_INFINITY;
-  function pace(): Promise<void> {
-    const turn = queue.then(async () => {
-      const wait = lastStart + paceMs - now();
-      if (wait > 0) await sleep(wait);
-      lastStart = now();
-    });
-    queue = turn.catch(() => undefined);
-    return turn;
-  }
+  const pace = createPacer(paceMs, now, sleep);
 
   async function fetchOnce(url: string): Promise<{ status: number; body: unknown }> {
     await pace();
