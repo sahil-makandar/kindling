@@ -23,7 +23,8 @@ const expected = [
 
 describe("database schema", () => {
   it("defines every table in the spec", () => {
-    const actual = Object.values(schema)
+    const exports: unknown[] = Object.values(schema);
+    const actual = exports
       .filter((v): v is Table => isTable(v))
       .map((t) => getTableName(t))
       .sort();
