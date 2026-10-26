@@ -35,7 +35,6 @@ export const locateStage: StageFn = (ctx) =>
   createLocateStage({
     ...createDbVenueRepo(getDb()),
     async searchPlaces({ query }, { runId }) {
-      const { items } = await searchEntities({ query, types: ["place"], take: 8 }, { purpose: "locate.venue", runId });
-      return items;
+      return searchEntities({ query, types: ["place"], take: 8 }, { purpose: "locate.venue", runId });
     },
   })(ctx);

@@ -13,12 +13,22 @@ import {
 // Typed helpers over the Qloo REST endpoints (docs/QLOO_API.md section 3). Each one returns
 // normalised items, any parse warnings (for the trace), and the id of the logged call.
 
+export type Endpoints = ReturnType<typeof createEndpoints>;
+
 export type EntityDomain = "artist" | "movie" | "tv_show" | "book" | "podcast" | "video_game" | "place";
 
 // Radius unit is assumed to be metres until the live spike confirms it (docs/QLOO_API.md section 7, question 1).
 export type GeoArea = { lon: number; lat: number; radiusM: number };
 
-export type EndpointResult<T> = Parsed<T> & { callId: string | null; cached: boolean };
+export type EndpointResult<T> = Parsed<T> & {
+  callId: string | null;
+  cached: boolean;
+  // What was asked. Qloo silently ignores parameters it does not understand, so when `empty` is true
+  // the caller puts this in the trace to help find a bad parameter.
+  endpoint: string;
+  params: Record<string, string>;
+  empty: boolean;
+};
 
 // WKT puts longitude first.
 export function pointWkt(lon: number, lat: number): string {
@@ -67,7 +77,15 @@ export function createEndpoints(get: QlooGet) {
     parse: (data: unknown) => Parsed<T>,
   ): Promise<EndpointResult<T>> {
     const res = await get(path, params, ctx);
-    return { ...parse(res.data), callId: res.callId, cached: res.cached };
+    const parsed = parse(res.data);
+    return {
+      ...parsed,
+      callId: res.callId,
+      cached: res.cached,
+      endpoint: path,
+      params: res.params,
+      empty: parsed.items.length === 0,
+    };
   }
 
   return {

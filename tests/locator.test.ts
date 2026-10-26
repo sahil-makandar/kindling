@@ -23,6 +23,8 @@ const place = (id: string, name: string, tags: string[], geo?: [number, number])
   properties: geo ? { geocode: { latitude: geo[0], longitude: geo[1] } } : {},
 });
 
+const found = (items: QlooEntity[]) => ({ items, endpoint: "/search", params: {} as Record<string, string> });
+
 const lanternRoom: Pick<VenueInput, "name" | "lat" | "lon"> = { name: "The Lantern Room", lat: 40.708, lon: -73.957 };
 
 describe("nameSimilarity", () => {
@@ -123,8 +125,7 @@ function fixtureLocator(venue: VenueInput) {
     saveMatch: async (venueId, match) => {
       saved.push({ venueId, match });
     },
-    searchPlaces: async ({ query }, { runId }) =>
-      (await api.searchEntities({ query, types: ["place"] }, { purpose: "locate.venue", runId })).items,
+    searchPlaces: ({ query }, { runId }) => api.searchEntities({ query, types: ["place"] }, { purpose: "locate.venue", runId }),
   });
   return { stage, saved, repo, run, store };
 }
@@ -181,13 +182,14 @@ describe("Locator stage with fixtures", () => {
     const stage = createLocateStage({
       getVenue: async () => venues[1].venue,
       saveMatch: async () => undefined,
-      searchPlaces: async () => [
-        place("1", "Lantern One", ["Cafe"]),
-        place("2", "Lantern Two", ["Cafe"]),
-        place("3", "Lantern Three", ["Cafe"]),
-        place("4", "Lantern Four", ["Cafe"]),
-        place("5", "Lantern Five", ["Cafe"]),
-      ],
+      searchPlaces: async () =>
+        found([
+          place("1", "Lantern One", ["Cafe"]),
+          place("2", "Lantern Two", ["Cafe"]),
+          place("3", "Lantern Three", ["Cafe"]),
+          place("4", "Lantern Four", ["Cafe"]),
+          place("5", "Lantern Five", ["Cafe"]),
+        ]),
     });
     await stage({ run, trace: createTracer(repo, run.id, "locate") });
     expect(repo.traces[1].message).toBe(
@@ -207,6 +209,40 @@ describe("Locator stage with fixtures", () => {
     });
   });
 
+  it("puts the full parameter set in the trace when Qloo returns nothing at all", async () => {
+    const repo = createMemoryRunRepo();
+    const run = repo.addRun();
+    const stage = createLocateStage({
+      getVenue: async () => venues[1].venue,
+      saveMatch: async () => undefined,
+      searchPlaces: async () => ({
+        items: [],
+        endpoint: "/search",
+        params: { query: "The Lantern Room Brooklyn, NY", take: "8", types: "urn:entity:place" },
+      }),
+    });
+    await stage({ run, trace: createTracer(repo, run.id, "locate") });
+    const empty = repo.traces.find((t) => t.message.startsWith("Qloo returned nothing for your venue name."));
+    expect(empty?.level).toBe("warn");
+    expect(empty?.message).toContain("query=The Lantern Room Brooklyn, NY, take=8, types=urn:entity:place");
+    expect(empty?.data).toEqual({
+      endpoint: "/search",
+      params: { query: "The Lantern Room Brooklyn, NY", take: "8", types: "urn:entity:place" },
+    });
+  });
+
+  it("does not add the debug line when Qloo found places but none matched", async () => {
+    const repo = createMemoryRunRepo();
+    const run = repo.addRun();
+    const stage = createLocateStage({
+      getVenue: async () => venues[1].venue,
+      saveMatch: async () => undefined,
+      searchPlaces: async () => found([place("m", "The Lantern Room", ["Museum"])]),
+    });
+    await stage({ run, trace: createTracer(repo, run.id, "locate") });
+    expect(repo.traces.some((t) => t.message.startsWith("Qloo returned nothing"))).toBe(false);
+  });
+
   it("logs its Qloo call against the run with the locate purpose", async () => {
     const { stage, store, repo, run } = fixtureLocator(venues[1].venue);
     await stage({ run, trace: createTracer(repo, run.id, "locate") });
@@ -218,7 +254,7 @@ describe("Locator stage with fixtures", () => {
   it("fails clearly when the venue row is missing", async () => {
     const repo = createMemoryRunRepo();
     const run = repo.addRun();
-    const stage = createLocateStage({ getVenue: async () => null, saveMatch: async () => undefined, searchPlaces: async () => [] });
+    const stage = createLocateStage({ getVenue: async () => null, saveMatch: async () => undefined, searchPlaces: async () => found([]) });
     await expect(stage({ run, trace: createTracer(repo, run.id, "locate") })).rejects.toThrow(/not found/);
   });
 

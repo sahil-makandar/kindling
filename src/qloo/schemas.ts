@@ -103,6 +103,15 @@ function toHeatPoint(raw: z.infer<typeof heatmapPointSchema>): QlooHeatPoint | u
   };
 }
 
+// Where a place says it is (shape UNVERIFIED until Q1). Absent or odd shapes mean "unknown".
+export function placeCoordinates(place: QlooEntity): { lat: number; lon: number } | null {
+  const geocode = place.properties.geocode as { latitude?: unknown; longitude?: unknown } | undefined;
+  if (typeof geocode?.latitude === "number" && typeof geocode.longitude === "number") {
+    return { lat: geocode.latitude, lon: geocode.longitude };
+  }
+  return null;
+}
+
 // Finds the result array: results[key] for insights, or results itself for /search.
 function findList(data: unknown, key: string | null): { list: unknown[]; warning?: string } {
   const results = (data as { results?: unknown } | null)?.results;

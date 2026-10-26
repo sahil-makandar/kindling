@@ -3,7 +3,7 @@ import type { QlooGet } from "@/src/qloo/client";
 import { createEndpoints } from "@/src/qloo/endpoints";
 
 function spy() {
-  const get = vi.fn<QlooGet>(async () => ({ data: { results: {} }, callId: "c1", status: 200, ms: 1, cached: false }));
+  const get = vi.fn<QlooGet>(async () => ({ data: { results: {} }, callId: "c1", status: 200, ms: 1, cached: false, params: {} }));
   return { get, api: createEndpoints(get) };
 }
 
@@ -96,5 +96,34 @@ describe("endpoint parameters", () => {
     expect(result.callId).toBe("c1");
     expect(result.items).toEqual([]);
     expect(result.warnings[0]).toMatch(/no "tags" list/);
+  });
+
+  it("reports the endpoint, the parameters sent and whether the result was empty", async () => {
+    const get = vi.fn<QlooGet>(async () => ({
+      data: { results: { entities: [] } },
+      callId: "c2",
+      status: 200,
+      ms: 1,
+      cached: false,
+      params: { "filter.type": "urn:entity:movie", take: "15" },
+    }));
+    const result = await createEndpoints(get).insightsEntities({ domain: "movie" }, ctx);
+    expect(result).toMatchObject({
+      empty: true,
+      endpoint: "/v2/insights",
+      params: { "filter.type": "urn:entity:movie", take: "15" },
+    });
+  });
+
+  it("is not empty when there are results", async () => {
+    const get = vi.fn<QlooGet>(async () => ({
+      data: { results: { entities: [{ entity_id: "a", name: "A" }] } },
+      callId: "c3",
+      status: 200,
+      ms: 1,
+      cached: false,
+      params: {},
+    }));
+    expect((await createEndpoints(get).insightsEntities({ domain: "movie" }, ctx)).empty).toBe(false);
   });
 });

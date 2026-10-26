@@ -1,4 +1,5 @@
-import type { QlooEntity } from "@/src/qloo/schemas";
+import { placeCoordinates, type QlooEntity } from "@/src/qloo/schemas";
+import { traceEmptyResult } from "./qlooTrace";
 import type { StageFn } from "./runStage";
 
 // The Locator finds the venue itself in Qloo's catalogue. Having it means the Scout can ask "what does
@@ -75,15 +76,6 @@ function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number): num
   return 12742 * Math.asin(Math.sqrt(h));
 }
 
-// Qloo's place coordinates (shape UNVERIFIED until Q1); absent or odd shapes mean "unknown".
-function placeCoordinates(hit: QlooEntity): { lat: number; lon: number } | null {
-  const geocode = hit.properties.geocode as { latitude?: unknown; longitude?: unknown } | undefined;
-  if (typeof geocode?.latitude === "number" && typeof geocode.longitude === "number") {
-    return { lat: geocode.latitude, lon: geocode.longitude };
-  }
-  return null;
-}
-
 // The category that made this place plausible, or the first one we know of.
 function categoryOf(hit: QlooEntity): { plausible: boolean; label: string | null } {
   const names = hit.tags.map((t) => t.name);
@@ -131,7 +123,10 @@ export function pickVenueMatch(
 export type LocatorDeps = {
   getVenue(venueId: string): Promise<VenueInput | null>;
   saveMatch(venueId: string, match: VenueMatch): Promise<void>;
-  searchPlaces(args: { query: string }, ctx: { runId: string }): Promise<QlooEntity[]>;
+  searchPlaces(
+    args: { query: string },
+    ctx: { runId: string },
+  ): Promise<{ items: QlooEntity[]; endpoint: string; params: Record<string, string> }>;
 };
 
 export function createLocateStage(deps: LocatorDeps): StageFn {
@@ -142,7 +137,9 @@ export function createLocateStage(deps: LocatorDeps): StageFn {
     const city = cityFromAddress(venue.address);
     await trace.info(`Looking for ${venue.name} on Qloo...`);
 
-    const hits = await deps.searchPlaces({ query: `${venue.name} ${city}`.trim() }, { runId: run.id });
+    const search = await deps.searchPlaces({ query: `${venue.name} ${city}`.trim() }, { runId: run.id });
+    const hits = search.items;
+    if (hits.length === 0) await traceEmptyResult(trace, "your venue name", search);
     const { match, skipped } = pickVenueMatch(venue, hits);
 
     if (skipped.length > 0) {

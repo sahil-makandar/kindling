@@ -34,6 +34,8 @@ const envSchema = z
 
     APP_URL: z.url().default("http://localhost:3000"),
     RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(10),
+    // Set by Vercel. Used only to refuse local-only settings on the hosted app.
+    VERCEL: z.string().optional(),
     NOMINATIM_USER_AGENT: z
       .string()
       .min(1)
@@ -48,6 +50,15 @@ const envSchema = z
 
     if (env.QLOO_MODE !== "fixtures") {
       need("QLOO_API_KEY", `when QLOO_MODE=${env.QLOO_MODE}`);
+    }
+    // Record mode writes Qloo responses to disk. That is for a developer machine only, because Qloo data
+    // must never end up in the public repo.
+    if (env.QLOO_MODE === "record" && env.VERCEL !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["QLOO_MODE"],
+        message: "record mode is for local use only; use live on the hosted app",
+      });
     }
 
     if (env.LLM_MODE === "live") {

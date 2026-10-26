@@ -40,6 +40,9 @@ export type QlooResponse = {
   status: number;
   ms: number;
   cached: boolean;
+  // The full parameter set that was sent. Qloo silently ignores parameters it does not understand,
+  // so when a result is empty this is what we show to help debug it.
+  params: Record<string, string>;
 };
 
 export type QlooGet = (path: string, params: QlooParams, ctx: QlooContext) => Promise<QlooResponse>;
@@ -64,15 +67,35 @@ export type QlooClientDeps = {
   sleep?: (ms: number) => Promise<void>;
   // Used by fixtures mode. Defaults to the sample fixtures.
   fixtures?: (path: string, params: Record<string, string>) => unknown;
-  // Used by record mode. Defaults to writing under fixtures/live/.
+  // Used by record mode. Defaults to writing under fixtures/live/, which is git-ignored: Qloo response
+  // data must never be committed to the public repo.
   record?: (fileName: string, payload: unknown) => Promise<void>;
   paceMs?: number;
   timeoutMs?: number;
   retryDelayMs?: number;
+  // Overrides the per-endpoint cache lifetimes below (tests).
   cacheTtlMs?: number;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Qloo allows private server-side caching with no time limit. Lookups change slowly, so they are kept
+// for a week; insights include trends, so they are kept for a day.
+const LOOKUP_TTL_MS = 7 * DAY_MS;
+const INSIGHTS_TTL_MS = DAY_MS;
+
+// The only endpoints we call. Everything is GET. We never use /recommendations or /recs.
+const ALLOWED_PATHS = new Set(["/search", "/entities", "/v2/tags", "/v2/insights", "/v2/analysis/compare"]);
+
+function cacheTtlFor(endpoint: string): number {
+  return endpoint === "/v2/insights" || endpoint === "/v2/analysis/compare" ? INSIGHTS_TTL_MS : LOOKUP_TTL_MS;
+}
+
+function failureMessage(status: number): string {
+  if (status === 429) return "Qloo is rate limiting us right now.";
+  if (status === 403) return "Qloo does not allow this kind of request with our key (status 403).";
+  return `Qloo answered with status ${status}.`;
+}
 
 function cleanParams(params: QlooParams): Record<string, string> {
   const out: Record<string, string> = {};
@@ -100,7 +123,6 @@ export function createQlooClient(deps: QlooClientDeps): { get: QlooGet } {
   const paceMs = deps.paceMs ?? 340;
   const timeoutMs = deps.timeoutMs ?? 15_000;
   const retryDelayMs = deps.retryDelayMs ?? 1500;
-  const cacheTtlMs = deps.cacheTtlMs ?? DAY_MS;
   const fixtures = deps.fixtures ?? fixtureResponse;
   const record = deps.record ?? writeRecording;
 
@@ -159,13 +181,15 @@ export function createQlooClient(deps: QlooClientDeps): { get: QlooGet } {
   }
 
   const get: QlooGet = async (endpoint, rawParams, ctx) => {
+    // A coding mistake, not something to show a person, so a plain Error.
+    if (!ALLOWED_PATHS.has(endpoint)) throw new Error(`Qloo endpoint not allowed: ${endpoint}`);
     const params = cleanParams(rawParams);
     const started = now();
 
     if (deps.mode === "fixtures") {
       const data = fixtures(endpoint, params);
       const ms = now() - started;
-      return { data, callId: await log(ctx, endpoint, params, 200, ms, data, false), status: 200, ms, cached: false };
+      return { data, callId: await log(ctx, endpoint, params, 200, ms, data, false), status: 200, ms, cached: false, params };
     }
 
     const query = new URLSearchParams(params).toString();
@@ -175,7 +199,14 @@ export function createQlooClient(deps: QlooClientDeps): { get: QlooGet } {
     try {
       const hit = await deps.store.getCache(key);
       if (hit !== undefined) {
-        return { data: hit, callId: await log(ctx, endpoint, params, 200, 0, hit, true), status: 200, ms: 0, cached: true };
+        return {
+          data: hit,
+          callId: await log(ctx, endpoint, params, 200, 0, hit, true),
+          status: 200,
+          ms: 0,
+          cached: true,
+          params,
+        };
       }
     } catch {
       // A cache outage only costs us a live call.
@@ -199,14 +230,11 @@ export function createQlooClient(deps: QlooClientDeps): { get: QlooGet } {
     const callId = await log(ctx, endpoint, params, result.status, ms, result.body, false);
 
     if (result.status < 200 || result.status >= 300) {
-      throw new QlooError(
-        result.status === 429 ? "Qloo is rate limiting us right now." : `Qloo answered with status ${result.status}.`,
-        result.status,
-      );
+      throw new QlooError(failureMessage(result.status), result.status);
     }
 
     try {
-      await deps.store.setCache(key, result.body, new Date(now() + cacheTtlMs));
+      await deps.store.setCache(key, result.body, new Date(now() + (deps.cacheTtlMs ?? cacheTtlFor(endpoint))));
     } catch {
       // Not caching is fine.
     }
@@ -217,7 +245,7 @@ export function createQlooClient(deps: QlooClientDeps): { get: QlooGet } {
         response: result.body,
       });
     }
-    return { data: result.body, callId, status: result.status, ms, cached: false };
+    return { data: result.body, callId, status: result.status, ms, cached: false, params };
   };
 
   return { get };
