@@ -15,6 +15,13 @@
       "when": 1793003412672,
       "tag": "0001_smiling_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793018475577,
+      "tag": "0002_milky_johnny_storm",
+      "breakpoints": true
     }
   ]
 }

@@ -144,6 +144,24 @@ export const candidates = pgTable(
   (t) => [index("candidates_run_idx").on(t.runId)],
 );
 
+// One row per cached language model answer, so re-opening a run never calls the model again.
+export const llmOutputs = pgTable(
+  "llm_outputs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => runs.id, { onDelete: "cascade" }),
+    // Which question this answers, for example "design" or "baseline".
+    cacheKey: text("cache_key").notNull(),
+    output: jsonb("output").notNull(),
+    provider: text("provider").notNull(),
+    model: text("model").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("llm_outputs_run_key_unique").on(t.runId, t.cacheKey)],
+);
+
 export const baselines = pgTable("baselines", {
   id: uuid("id").defaultRandom().primaryKey(),
   runId: uuid("run_id")

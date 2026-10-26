@@ -25,6 +25,10 @@ const envSchema = z
     LLM_FALLBACK_PROVIDER: providerEnum.optional(),
     LLM_MODEL: z.string().min(1).optional(),
     LLM_MODEL_FAST: z.string().min(1).optional(),
+    // Model names for LLM_FALLBACK_PROVIDER. They are different from the main provider's, so they are separate.
+    // If either is missing, the fallback provider is simply not used.
+    LLM_FALLBACK_MODEL: z.string().min(1).optional(),
+    LLM_FALLBACK_MODEL_FAST: z.string().min(1).optional(),
     GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
     GROQ_API_KEY: z.string().min(1).optional(),
     XAI_API_KEY: z.string().min(1).optional(),
