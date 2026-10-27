@@ -179,6 +179,12 @@ export function resolveCandidates(
       drop("it used something that Qloo never returned for this area");
       continue;
     }
+    // Qloo cannot use a place as a taste signal for films or music, and a vibe tag says nothing about taste, so a club
+    // is anchored on something fans love: a film, show, song, book, podcast or a genre or theme.
+    if (anchorSignal.domain === "place" || (anchorSignal.kind === "tag" && !isTasteTag(anchorSignal))) {
+      drop("a place or a vibe tag cannot anchor a club");
+      continue;
+    }
     if (usedAnchors.has(anchorSignal.refId)) {
       drop("another idea already uses the same anchor");
       continue;

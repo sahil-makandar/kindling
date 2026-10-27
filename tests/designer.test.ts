@@ -151,6 +151,13 @@ describe("resolveCandidates", () => {
     expect(dropped[0].reason).toBe("another idea already uses the same anchor");
   });
 
+  it("drops a club anchored on a place, because Qloo cannot use a place as a taste signal for films or music", async () => {
+    const { aliases } = buildAliasTable(await poolFor("williamsburg"));
+    const { kept, dropped } = resolveCandidates([raw({ anchor: "l1", companions: ["m1"] })], aliases);
+    expect(kept).toEqual([]);
+    expect(dropped[0].reason).toBe("a place or a vibe tag cannot anchor a club");
+  });
+
   it("does not let an anchor be its own companion", async () => {
     const { aliases } = buildAliasTable(await poolFor("williamsburg"));
     const { kept, dropped } = resolveCandidates([raw({ companions: ["m1"] })], aliases);
