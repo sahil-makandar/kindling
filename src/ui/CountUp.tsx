@@ -24,8 +24,9 @@ export function CountUp({ value, durationMs = 700, suffix = "" }: { value: numbe
   }, [value, durationMs]);
 
   return (
-    <span aria-label={`${value}${suffix}`}>
+    <span>
       <span aria-hidden="true">{shown}{suffix}</span>
+      <span className="sr-only">{value}{suffix}</span>
     </span>
   );
 }

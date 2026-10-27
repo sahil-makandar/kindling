@@ -155,7 +155,7 @@ export default async function HowPage() {
         <p className="max-w-[68ch]">
           All calls go through one client that paces them, retries once, caches them and logs each one. The counts below come from that log ({total} calls so far), not from a script. The picks page shows the exact calls behind each score.
         </p>
-        <div className="overflow-x-auto rounded-md border-2 border-ink bg-card">
+        <div className="relative overflow-x-auto rounded-md border-2 border-ink bg-card">
           <table className="w-full min-w-[46rem] text-left text-sm">
             <caption className="sr-only">Qloo endpoints the app uses</caption>
             <thead className="border-b-2 border-ink">
@@ -202,7 +202,7 @@ export default async function HowPage() {
           The club score
         </h2>
         <p className="max-w-[68ch]">A fixed formula, not a model&apos;s opinion. The weights are below, and each part comes with a reason and the Qloo calls behind it.</p>
-        <div className="overflow-x-auto rounded-md border-2 border-ink bg-card">
+        <div className="relative overflow-x-auto rounded-md border-2 border-ink bg-card">
           <table className="w-full min-w-[34rem] text-left text-sm">
             <caption className="sr-only">Parts of the club score</caption>
             <thead className="border-b-2 border-ink">

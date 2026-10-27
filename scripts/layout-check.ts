@@ -69,7 +69,9 @@ async function main() {
 
   for (const target of pages) {
     for (const width of WIDTHS) {
-      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const context = await browser.newContext({ viewport: { width, height: 900 } });
+      const page = await context.newPage();
+      await page.addInitScript("window.__name = (f) => f;");
       const response = await page.goto(`${BASE}${target.path}`, { waitUntil: "networkidle", timeout: 60000 }).catch(() => null);
       if (!response || (response.status() >= 400 && target.name !== "not-found")) {
         findings.push({ page: target.name, width, kind: "load failed", detail: `status ${response?.status() ?? "none"}` });

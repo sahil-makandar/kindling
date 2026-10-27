@@ -169,7 +169,7 @@ export function PicksView({ data }: { data: CandidatesView }) {
         Pick the club you want to run. Each score blends your venue&apos;s crowd, the places within 1 km and your city&apos;s culture. Press a bar or &quot;How we know&quot; to see the Qloo calls behind a number.
       </PageIntro>
 
-      <section aria-label="Top picks" className="grid gap-8 md:grid-cols-3">
+      <section aria-label="Top picks" className="grid grid-cols-[minmax(0,1fr)] gap-8 md:grid-cols-3">
         {top.map((club, i) => (
           <FlyerCard key={club.id} title={club.title} stamp={formatName(club.format)} score={formatScore(club.score)} tilt={i % 2 === 0 ? "left" : "right"} className="flex flex-col">
             <p>{club.why}</p>
@@ -263,11 +263,11 @@ export function PicksView({ data }: { data: CandidatesView }) {
       )}
 
       {others.length > 0 && (
-        <section aria-labelledby="others-title">
+        <section aria-labelledby="others-title" className="min-w-0">
           <h2 id="others-title" className="text-[2rem]">
             Other ideas
           </h2>
-          <div className="mt-4 overflow-x-auto rounded-md border-2 border-ink bg-card">
+          <div className="relative mt-4 w-full max-w-full overflow-x-auto rounded-lg border-2 border-ink bg-card">
             <table className="w-full min-w-[34rem] text-left">
               <caption className="sr-only">Other club ideas, ranked</caption>
               <thead className="border-b-2 border-ink">

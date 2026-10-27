@@ -109,7 +109,7 @@ export function LiveBoard({ clubId, clubTitle, initial, qr, checkInPath }: { clu
             <div>
               <p className="font-bold">Scan to check in</p>
               <p className="font-poster text-3xl font-extrabold tracking-widest">{board.session.checkInCode}</p>
-              <a href={checkInPath} className="text-sm">
+              <a href={checkInPath} className="inline-block py-3 text-sm">
                 Open the check-in page
               </a>
             </div>

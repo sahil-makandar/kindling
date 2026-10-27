@@ -11,7 +11,7 @@ export function VenueShell({ progress, current, children }: { progress: VenuePro
   const type = VENUE_TYPE_LABEL[progress.venueType as (typeof VENUE_TYPES)[number]] ?? progress.venueType;
   const night = NIGHT_LABEL[progress.slowNight as (typeof NIGHTS)[number]] ?? progress.slowNight;
   return (
-    <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-10">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-10">
       {!progress.isDemo && <RememberVenue venueName={progress.venueName} venueType={progress.venueType} slowNight={progress.slowNight} runId={progress.runId} clubId={progress.clubId} clubTitle={progress.clubTitle} />}
       <aside className="no-print lg:sticky lg:top-6 lg:self-start">
         <div className="hidden rounded-lg border-2 border-ink bg-card p-4 shadow-hard lg:block">

@@ -73,5 +73,5 @@ export default function VenueMap({
     }
   }, [heat]);
 
-  return <div ref={container} role="img" aria-label={label} className="h-full w-full bg-paper" />;
+  return <div ref={container} role="group" aria-label={label} className="h-full w-full bg-paper" />;
 }
