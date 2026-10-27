@@ -233,7 +233,7 @@ async function main() {
 
   const dir = path.join(process.cwd(), "fixtures", "live");
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, "spike-summary.json"), JSON.stringify({ summary, rows: rows.map(({ names: _n, ids: _i, ...rest }) => rest) }, null, 2));
+  await writeFile(path.join(dir, "spike-summary.json"), JSON.stringify({ summary, rows: rows.map((row) => ({ ...row, names: undefined, ids: undefined })) }, null, 2));
 
   console.log("\n=== SUMMARY (no response bodies) ===");
   console.log(JSON.stringify(summary, null, 2));

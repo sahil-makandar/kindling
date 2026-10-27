@@ -11,14 +11,14 @@ import { verifyStage } from "./verifier/repo";
 // Built on first use and kept on globalThis so a dev server reload does not make a second one.
 
 type Runner = ReturnType<typeof createRunner>;
-const holder = globalThis as unknown as { __kindlingRunner?: Runner };
+const holder = globalThis as unknown as { __runner?: Runner };
 
 export function getRunner(): Runner {
-  holder.__kindlingRunner ??= createRunner({
+  holder.__runner ??= createRunner({
     repo: createDbRunRepo(getDb()),
     stages: { locate: locateStage, scout: scoutStage, design: designStage, verify: verifyStage, baseline: baselineStage },
   });
-  return holder.__kindlingRunner;
+  return holder.__runner;
 }
 
 export function advanceRun(runId: string) {

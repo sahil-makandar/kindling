@@ -37,7 +37,7 @@ export const MAX_DISTANCE_KM = 25;
 // The trace names at most this many skipped places, then says how many more.
 const MAX_SKIPPED_SHOWN = 3;
 
-// Words in a Qloo category that make a place a plausible Kindling venue.
+// Words in a Qloo category that make a place a plausible venue for a club.
 const VENUE_CATEGORY =
   /\b(cafe|café|coffee|tea|bar|pub|tavern|brewery|taproom|bakery|restaurant|ramen|izakaya|taqueria|dumpling|diner|bistro|eatery|wine|cocktail|lounge|bookstore|book ?shop|book store|music venue|concert|venue|club|community|event|brewpub)\b/i;
 

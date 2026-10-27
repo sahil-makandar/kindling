@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { APP_NAME } from "@/src/config/brand";
 import { FORMAT_LABEL, type ClubFormat } from "@/src/agent/designer/candidates";
 import { COMPONENT_HELP, COMPONENT_LABEL, describeParams, formatScore, resultsLabel, statusLabel } from "@/src/runs/evidence";
 import { WEIGHTS } from "@/src/scoring/clubScore";
@@ -205,7 +206,7 @@ export function PicksView({ data }: { data: CandidatesView }) {
                   ))}
                 </ol>
                 <p className="mt-4 text-sm font-bold">
-                  Kindling: {top.length} picks, every one built from things Qloo returned for this area.
+                  {APP_NAME}: {top.length} picks, every one built from things Qloo returned for this area.
                 </p>
               </Card>
               <Card className="border-dashed">

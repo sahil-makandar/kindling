@@ -1,10 +1,11 @@
+import { APP_NAME } from "@/src/config/brand";
 import { Button } from "@/src/ui/Button";
 import { LandingForm } from "@/src/ui/LandingForm";
 
 const STEPS = [
-  { title: "Read the street", body: "Qloo shows what people around your door actually love: films, music, books, food. Kindling scans it and keeps the evidence." },
+  { title: "Read the street", body: "Qloo shows what people around your door actually love: films, music, books, food. " + APP_NAME + " scans it and keeps the evidence." },
   { title: "Design the club", body: "The agent builds clubs this block over-indexes on, scores each one with a plain formula, and writes the poster, the run of show and the listing." },
-  { title: "Bring them back", body: "People check in with a QR code and tap three favourites. Kindling seats strangers who share a taste, then re-tunes the plan every week." },
+  { title: "Bring them back", body: "People check in with a QR code and tap three favourites. " + APP_NAME + " seats strangers who share a taste, then re-tunes the plan every week." },
 ] as const;
 
 export default function Home() {
@@ -14,9 +15,9 @@ export default function Home() {
         <div className="flex flex-col gap-5 lg:pt-6">
           <h1 className="max-w-[16ch] text-[2.75rem]">Turn your quietest night into your neighbourhood&apos;s favourite club.</h1>
           <p className="max-w-[56ch] text-lg text-ink-soft">
-            Tell us where your venue is. Kindling reads what your neighbours really love, designs a weekly night around it, and seats strangers by shared taste.
+            Tell us where your venue is. {APP_NAME} reads what your neighbours really love, designs a weekly night around it, and seats strangers by shared taste.
           </p>
-          <p className="max-w-[56ch] text-ink-soft">Takes about two minutes. No sign-up. Kindling plans for the night you tell us is slowest.</p>
+          <p className="max-w-[56ch] text-ink-soft">Takes about two minutes. No sign-up. {APP_NAME} plans for the night you tell us is slowest.</p>
           <div className="flex flex-col items-start gap-2">
             <Button href="/demo" variant="secondary">
               See a demo venue
