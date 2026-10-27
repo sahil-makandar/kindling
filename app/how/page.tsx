@@ -5,7 +5,7 @@ import { getQlooUsage, QLOO_USES, type UsageRow } from "@/src/runs/usage";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: `How it works | ${APP_NAME}`, description: "What the agent does, which Qloo calls it makes and why, and what it does not do." };
+export const metadata: Metadata = { title: "How it works", description: "What the agent does, which Qloo calls it makes and why, and what it does not do." };
 
 const FACTS = [
   { number: "6%", text: "of restaurant reservations are for Monday nights, and 8% for Tuesday (Toast data).", url: "https://www.chowhound.com/1841628/why-restaurants-closed-on-mondays" },

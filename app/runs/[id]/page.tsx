@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getDb } from "@/src/db/client";
 import { requireUuid } from "@/src/runs/http";
 import { getRunState } from "@/src/runs/state";
 import { RunView } from "@/src/ui/RunView";
+
+export const metadata: Metadata = { title: "Reading the neighbourhood" };
 
 export const dynamic = "force-dynamic";
 

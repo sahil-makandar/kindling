@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
@@ -10,6 +11,8 @@ import { requireUuid } from "@/src/runs/http";
 import { Button } from "@/src/ui/Button";
 import { EmptyState } from "@/src/ui/EmptyState";
 import { LiveBoard } from "@/src/ui/LiveBoard";
+
+export const metadata: Metadata = { title: "Live night" };
 
 export const dynamic = "force-dynamic";
 

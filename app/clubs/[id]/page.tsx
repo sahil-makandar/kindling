@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
@@ -8,6 +9,8 @@ import { getClub } from "@/src/clubs/state";
 import { requireUuid } from "@/src/runs/http";
 import { ClubKitView } from "@/src/ui/ClubKitView";
 import { KitLoader } from "@/src/ui/KitLoader";
+
+export const metadata: Metadata = { title: "Club kit" };
 
 export const dynamic = "force-dynamic";
 

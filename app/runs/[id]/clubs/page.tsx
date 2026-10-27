@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getDb } from "@/src/db/client";
 import { requireUuid } from "@/src/runs/http";
 import { getCandidates } from "@/src/runs/state";
 import { PicksView } from "@/src/ui/PicksView";
+
+export const metadata: Metadata = { title: "Your hidden clubs" };
 
 export const dynamic = "force-dynamic";
 

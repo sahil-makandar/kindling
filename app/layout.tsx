@@ -26,8 +26,9 @@ const bigShoulders = Big_Shoulders({
 });
 
 export const metadata: Metadata = {
-  title: APP_NAME,
+  title: { default: APP_NAME, template: `%s | ${APP_NAME}` },
   description: TAGLINE,
+  openGraph: { title: APP_NAME, description: TAGLINE, type: "website" },
 };
 
 export default function RootLayout({

@@ -7,6 +7,7 @@ import { NIGHTS, NIGHT_LABEL, VENUE_TYPES, VENUE_TYPE_LABEL, createRunSchema } f
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { cx } from "./cx";
+import { PinPickerView } from "./PinPickerLoader";
 import { Spinner } from "./Spinner";
 
 type Fields = { name: string; address: string; venueType: string; slowNight: string; headcount: string };
@@ -44,20 +45,29 @@ export function LandingForm() {
   const router = useRouter();
   const [fields, setFields] = useState<Fields>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
-  const [pinned, setPinned] = useState<Preset["input"] | null>(null);
+  const [pinned, setPinned] = useState<{ lat: number; lon: number; matchedAddress: string } | null>(null);
+  const [pinKind, setPinKind] = useState<"preset" | "map" | null>(null);
+  // Set when the address could not be found, which offers the map to drop a pin on instead.
+  const [addressMissing, setAddressMissing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
   function set<K extends keyof Fields>(key: K, value: string) {
     setFields((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: undefined }));
-    // Editing the address means the preset's coordinates no longer apply.
-    if (key === "address") setPinned(null);
+    // Editing the address means a preset's or a dropped pin's coordinates no longer apply.
+    if (key === "address") {
+      setPinned(null);
+      setPinKind(null);
+      setAddressMissing(false);
+    }
   }
 
   function applyPreset(preset: Preset) {
     setFields({ name: preset.input.name, address: preset.input.address, venueType: preset.input.venueType, slowNight: preset.input.slowNight, headcount: "" });
     setPinned(preset.input);
+    setPinKind("preset");
+    setAddressMissing(false);
     setErrors({});
     setProblem(null);
   }
@@ -93,6 +103,7 @@ export function LandingForm() {
         router.push(`/runs/${body.runId}${body.cached ? "?replay=1" : ""}`);
         return;
       }
+      if (response.status === 422) setAddressMissing(true);
       setProblem(body.error ?? "Something went wrong. Please try again.");
     } catch {
       setProblem("We could not reach the server. Check your connection and try again.");
@@ -181,6 +192,23 @@ export function LandingForm() {
           </p>
         )}
 
+        {addressMissing && (
+          <div className="flex flex-col gap-2">
+            <p className="font-bold">Or click the map where your venue is</p>
+            <div className="overflow-hidden rounded-md border-2 border-ink">
+              <PinPickerView
+                pin={pinKind === "map" && pinned ? { lat: pinned.lat, lon: pinned.lon } : null}
+                onPick={(pin) => {
+                  setPinned({ lat: pin.lat, lon: pin.lon, matchedAddress: "Pinned on the map" });
+                  setPinKind("map");
+                  setProblem(null);
+                }}
+              />
+            </div>
+            {pinKind === "map" && <p className="text-sm font-bold">Pin dropped. Press the button to continue.</p>}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-4">
           <Button type="submit" variant="cta" disabled={submitting}>
             Find my hidden clubs
@@ -205,7 +233,7 @@ export function LandingForm() {
             </li>
           ))}
         </ul>
-        {pinned && <p className="mt-3 text-sm text-ink-soft">Example filled in. Change anything you like, then press the button.</p>}
+        {pinKind === "preset" && <p className="mt-3 text-sm text-ink-soft">Example filled in. Change anything you like, then press the button.</p>}
       </div>
     </Card>
   );

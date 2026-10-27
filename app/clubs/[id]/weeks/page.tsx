@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getWeeklyView } from "@/src/coach/view";
 import { getDb } from "@/src/db/client";
 import { requireUuid } from "@/src/runs/http";
 import { WeeklyReport } from "@/src/ui/WeeklyView";
+
+export const metadata: Metadata = { title: "Weekly report" };
 
 export const dynamic = "force-dynamic";
 

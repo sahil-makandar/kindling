@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { normaliseCode } from "@/src/clubs/sessions";
 import { DEVICE_COOKIE } from "@/src/checkin/cookie";
@@ -6,6 +7,8 @@ import { getDb } from "@/src/db/client";
 import { Button } from "@/src/ui/Button";
 import { CheckInFlow } from "@/src/ui/CheckInFlow";
 import { EmptyState } from "@/src/ui/EmptyState";
+
+export const metadata: Metadata = { title: "Check in" };
 
 export const dynamic = "force-dynamic";
 
