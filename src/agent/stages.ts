@@ -2,7 +2,7 @@ import { getDb } from "@/src/db/client";
 import { baselineStage } from "./baseline/repo";
 import { designStage } from "./designer/repo";
 import { createDbRunRepo } from "./runRepo";
-import { createRunner } from "./runStage";
+import { createRunner, type StageFn } from "./runStage";
 import { scoutStage } from "./scout/repo";
 import { locateStage } from "./venueRepo";
 import { verifyStage } from "./verifier/repo";
@@ -13,10 +13,19 @@ import { verifyStage } from "./verifier/repo";
 type Runner = ReturnType<typeof createRunner>;
 const holder = globalThis as unknown as { __runner?: Runner };
 
+// The comparison without Qloo needs only the venue and the finished pool, so it runs while the clubs are being checked.
+// Its answer is cached for the run, so the baseline stage that follows finds it ready and finishes at once. A failure here
+// is left to that later stage to report, because the comparison is a bonus.
+const verifyWithBaseline: StageFn = async (ctx) => {
+  const comparison = baselineStage(ctx).catch(() => undefined);
+  await verifyStage(ctx);
+  await comparison;
+};
+
 export function getRunner(): Runner {
   holder.__runner ??= createRunner({
     repo: createDbRunRepo(getDb()),
-    stages: { locate: locateStage, scout: scoutStage, design: designStage, verify: verifyStage, baseline: baselineStage },
+    stages: { locate: locateStage, scout: scoutStage, design: designStage, verify: verifyWithBaseline, baseline: baselineStage },
   });
   return holder.__runner;
 }

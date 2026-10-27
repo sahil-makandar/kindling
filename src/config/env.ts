@@ -31,7 +31,7 @@ const envSchema = z
 
     LLM_MODE: z.enum(["mock", "live"]).default("mock"),
     LLM_PROVIDER: providerEnum.default("google"),
-    // Fallbacks, tried in order when the main provider fails or is rate limited. For example "groq,openai-compatible".
+    // Fallbacks, tried in order when the main provider fails or is rate limited. For example "openai-compatible".
     LLM_FALLBACK_PROVIDERS: providerList,
     // Models for the main provider. Each fallback has its own <PROVIDER>_MODEL and <PROVIDER>_MODEL_FAST, and is
     // skipped when they are missing.

@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { getDb, type Db } from "@/src/db/client";
 import { baselines } from "@/src/db/schema";
 import { createDbDesignerRepo } from "../designer/repo";
@@ -19,8 +20,11 @@ export function createDbBaselineRepo(db: Db): Pick<BaselineDeps, "saveBaseline">
 }
 
 // The baseline wired to the database and the language model. Built on first use.
-export const baselineStage: StageFn = (ctx) => {
+export const baselineStage: StageFn = async (ctx) => {
   const db = getDb();
+  // Already written, for example while the clubs were being checked: nothing more to do, and no second trace line.
+  const [done] = await db.select({ id: baselines.id }).from(baselines).where(eq(baselines.runId, ctx.run.id));
+  if (done) return;
   return createBaselineStage({
     getVenue: createDbVenueRepo(db).getVenue,
     loadPool: createDbDesignerRepo(db).loadPool,

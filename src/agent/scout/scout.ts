@@ -186,6 +186,12 @@ export class ScoutRun {
     return run();
   }
 
+  // Takes the budget and marks the action done before anything is awaited, so scans started together cannot overspend.
+  private reserve(action: string, domain: string | undefined, calls: number): void {
+    this.doneAt.set(this.key(action, domain), this.step);
+    this.used += calls;
+  }
+
   private snapshot(): { callsUsed: number; callsLeft: number } {
     return { callsUsed: this.used, callsLeft: this.callsLeft };
   }
@@ -229,6 +235,7 @@ export class ScoutRun {
     const action = `area-${band}`;
     const refused = this.refusal(action, domain);
     if (refused) return this.refuse(refused);
+    this.reserve(action, domain, 1);
     const label = DOMAIN_LABEL[domain];
     const kind = band === "local" ? "distinctive " : "mainstream ";
     await this.deps.trace.info(`Next: read the area's ${kind}taste in ${label}. ${sentence(reason)}`, {
@@ -239,7 +246,7 @@ export class ScoutRun {
     });
 
     return this.guarded(label, () =>
-      this.spendOn(action, domain, 1, async () => {
+      (async () => {
         const result = await this.deps.api.insightsEntities(
           {
             domain,
@@ -282,7 +289,7 @@ export class ScoutRun {
             : undefined,
           ...this.snapshot(),
         };
-      }),
+      })(),
     );
   }
 
@@ -377,11 +384,12 @@ export class ScoutRun {
     }
     const refused = this.refusal("trend", domain);
     if (refused) return this.refuse(refused);
+    this.reserve("trend", domain, 1);
     const label = DOMAIN_LABEL[domain];
     await this.deps.trace.info(`Next: check what is rising in ${label}. ${sentence(reason)}`, { tool: "scan_trending", domain, reason });
 
     return this.guarded(`trends in ${label}`, () =>
-      this.spendOn("trend", domain, 1, async () => {
+      (async () => {
         const result = await this.deps.api.insightsEntities(
           {
             domain,
@@ -399,7 +407,7 @@ export class ScoutRun {
           { domain, callId: result.callId },
         );
         return { ok: true, domain, results: result.items.length, rising: compactEntities(result.items, 5), ...this.snapshot() };
-      }),
+      })(),
     );
   }
 
@@ -485,29 +493,24 @@ export async function runDeterministicPlan(scout: ScoutRun): Promise<void> {
   const domains = planFor(scout.venue.venueType);
   let widened = false;
 
-  for (const domain of domains) {
-    if (scout.hasArea(domain) && !scout.staleDomains().includes(domain)) continue;
-    const result = await scout.scanArea(domain, why);
-    if (result.ok && result.thin && scout.canWiden && !widened) {
-      widened = true;
-      await scout.widenRadius("The first scan came back thin.");
-      await scout.scanArea(domain, "Scanning again at the wider radius.");
-    }
+  // The first look at each domain does not depend on the others, so they go out together. Pacing to Qloo is the client's job.
+  const first = await Promise.all(domains.filter((d) => !scout.hasArea(d) || scout.staleDomains().includes(d)).map((d) => scout.scanArea(d, why)));
+  if (first.some((result) => result.ok && result.thin) && scout.canWiden && !widened) {
+    widened = true;
+    await scout.widenRadius("The first scan came back thin.");
   }
   for (const domain of scout.staleDomains()) {
     await scout.scanArea(domain as ScoutDomain, "Scanning again at the wider radius.");
   }
 
-  if (!scout.has("places")) await scout.scanNearbyPlaces(why);
-
   const strong = domains.filter((d) => scout.pool.areaEntities(d).length >= STRONG_DOMAIN_MIN);
-  for (const domain of strong.filter((d) => TRENDING_DOMAINS.includes(d)).slice(0, 2)) {
-    if (!scout.has("trend", domain)) await scout.scanTrending(domain, why);
-  }
-  if (scout.venue.qlooEntityId && !scout.has("similar")) await scout.scanSimilarVenues(why);
-  if (!scout.has("tags")) await scout.scanAreaTags(why);
-  // The mainstream picks, for the crowd-pulling anchors the distinctive band leaves out.
-  for (const domain of strong.slice(0, 2)) {
-    if (!scout.has("area-mainstream", domain)) await scout.scanArea(domain, why, "mainstream");
-  }
+  // The rest are independent of each other too: what is rising, the places within 1 km, venues like this one, the area's
+  // tags, and the mainstream picks for the crowd-pulling anchors the distinctive band leaves out.
+  await Promise.all([
+    ...strong.filter((d) => TRENDING_DOMAINS.includes(d)).slice(0, 2).filter((d) => !scout.has("trend", d)).map((d) => scout.scanTrending(d, why)),
+    ...(scout.has("places") ? [] : [scout.scanNearbyPlaces(why)]),
+    ...(scout.venue.qlooEntityId && !scout.has("similar") ? [scout.scanSimilarVenues(why)] : []),
+    ...(scout.has("tags") ? [] : [scout.scanAreaTags(why)]),
+    ...strong.slice(0, 2).filter((d) => !scout.has("area-mainstream", d)).map((d) => scout.scanArea(d, why, "mainstream")),
+  ]);
 }
