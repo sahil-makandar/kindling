@@ -44,6 +44,9 @@ export const venues = pgTable("venues", {
   qlooEntityName: text("qloo_entity_name"),
   // The venue's own tags on Qloo, saved by the Locator.
   qlooTags: jsonb("qloo_tags"),
+  // The address the geocoder matched, and the other places it considered, so the run page can show which one it used.
+  matchedAddress: text("matched_address"),
+  addressAlternatives: jsonb("address_alternatives"),
   isDemo: boolean("is_demo").default(false).notNull(),
   createdAt: createdAt(),
 });
