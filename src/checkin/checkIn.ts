@@ -1,12 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { Favourite, TasteVector } from "@/src/seating/tasteVector";
 import type { TableExplanation } from "@/src/seating/assignTables";
+import { sharedLine } from "@/src/seating/describe";
 import { HttpError } from "@/src/runs/http";
 import { normaliseCode } from "@/src/clubs/sessions";
 import { checkInSchema, type FavouriteInput } from "./schema";
 
 // Check-in: a guest gives a name and three favourites and is seated with people who share their taste. The orchestration
 // is here with the storage and Qloo behind small interfaces, so it is tested without a database or the network.
+
+export { sharedLine };
 
 export const TASTE_TIMEOUT_MS = 12_000;
 
@@ -72,19 +75,6 @@ export type CheckInResult = {
   // Set when the guest asked to be remembered; the route stores it in a cookie.
   deviceToken: string | null;
 };
-
-// "You all love: Wong Kar-wai, city pop, ramen." Shared favourites first, then shared tags, at most three items.
-// "You all love" only names things every person at the table has; otherwise the line says some of them share it.
-export function sharedLine(explanation: TableExplanation | null): string | null {
-  if (!explanation) return null;
-  const items: Array<{ name: string; count: number }> = [];
-  for (const fav of explanation.sharedFavourites) items.push(fav);
-  for (const tag of explanation.sharedTags) if (!items.some((i) => i.name.toLowerCase() === tag.name.toLowerCase())) items.push(tag);
-  const everyone = items.filter((i) => i.count >= explanation.size).map((i) => i.name);
-  if (everyone.length > 0) return `You all love: ${everyone.slice(0, 3).join(", ")}.`;
-  const some = items.map((i) => i.name).slice(0, 3);
-  return some.length > 0 ? `Some of you share a love of: ${some.join(", ")}.` : null;
-}
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | "timeout"> {
   return new Promise((resolve, reject) => {

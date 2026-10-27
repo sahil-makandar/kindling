@@ -1,4 +1,5 @@
 import { and, asc, count, eq, inArray, ne, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { Db } from "@/src/db/client";
 import { attendees, checkins, clubs, sessions, venues } from "@/src/db/schema";
 import { HttpError } from "@/src/runs/http";
@@ -225,4 +226,25 @@ export async function forgetByCheckin(db: Db, checkinId: string): Promise<boolea
 export async function findReturning(db: Db, token: string): Promise<{ nickname: string } | null> {
   const [row] = await db.select({ nickname: attendees.nickname }).from(attendees).where(eq(attendees.deviceToken, token));
   return row ?? null;
+}
+
+// ---- closing the night ----
+
+export const closeSessionSchema = z.object({
+  headcount: z.number().int("Use a whole number.").min(0, "Use 0 or more.").max(1000, "That is more than we can plan for.").optional(),
+  vibe: z.number().int().min(1, "Rate the night from 1 to 5.").max(5, "Rate the night from 1 to 5.").optional(),
+});
+
+// Ends check-in for the night and records what the host saw: how many people really came, and how the night felt.
+export async function closeSession(db: Db, sessionId: string, raw: unknown): Promise<Board> {
+  const input = closeSessionSchema.parse(raw);
+  const [session] = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId));
+  if (!session) throw new HttpError(404, "We could not find that session.");
+  await db
+    .update(sessions)
+    .set({ status: "closed", ...(input.headcount !== undefined ? { headcountManual: input.headcount } : {}), ...(input.vibe !== undefined ? { vibeRating: input.vibe } : {}) })
+    .where(eq(sessions.id, sessionId));
+  const board = await loadBoard(db, sessionId);
+  if (!board) throw new HttpError(404, "We could not find that session.");
+  return board;
 }
