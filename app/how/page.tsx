@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { APP_NAME, REPO_URL } from "@/src/config/brand";
 import { getDb } from "@/src/db/client";
+import { Button } from "@/src/ui/Button";
 import { getQlooUsage, QLOO_USES, type UsageRow } from "@/src/runs/usage";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ const FACTS = [
 ] as const;
 
 const LOOP = [
-  { name: "Scout", text: "Reads what the neighbourhood loves with Qloo." },
+  { name: "Scout", text: "Reads your city's taste, the places within 1 km and your venue's crowd with Qloo." },
   { name: "Design", text: "Proposes hidden clubs from that evidence." },
   { name: "Verify", text: "Checks and scores each club with more Qloo calls." },
   { name: "Produce", text: "Writes the kit: poster, run of show, listing, menu." },
@@ -39,13 +40,20 @@ const WHO = [
   { what: "Our code", items: "The club score, the seating, the keep, tweak or switch decision, the regulars count, the licence note and every check that a cited thing exists." },
 ] as const;
 
+const REACH = [
+  { scope: "Your venue's crowd", text: "The tags Qloo holds for your venue and for venues like it. Different venue types have different crowds, so a brewery and a cafe get different clubs." },
+  { scope: "Places within 1 km", text: "The places around your door, with their categories. This is the most local thing Qloo gives, and it differs from one neighbourhood to the next." },
+  { scope: "Your city's culture", text: "What your city loves and what is rising there. It tells us which films, songs and books are worth building a club on." },
+] as const;
+
 const SCORE = [
-  ["Loved around here", "30%", "How strongly people near the venue favour the anchor."],
-  ["Fits together", "20%", "Whether the anchor and companions belong together, from a Qloo call."],
-  ["Fits your venue", "15%", "Whether people who like places like yours like it too."],
-  ["Rising now", "10%", "Whether it is trending in the area."],
-  ["Known but not too common", "15%", "Popular enough to draw a crowd, niche enough to feel like identity."],
-  ["Right kind of night", "10%", "How well the format suits this kind of venue. A rule, not a Qloo call."],
+  ["Fits your venue's crowd", "20%", "Scope: your venue's crowd. Whether the club's taste shows up in the Qloo tags of your venue and of venues like it. If your venue is not on Qloo, places of the same kind nearby stand in, and the page says so."],
+  ["Fits places near you", "15%", "Scope: places within 1 km. Whether the places around your door carry the same words as the club, and whether the club uses one of them. The most local signal Qloo gives."],
+  ["Loved in your city", "15%", "Scope: your city's culture. How strongly your city favours the anchor. Qloo reads this for the whole city, not the block."],
+  ["Fits together", "15%", "Scope: the club itself. Whether the anchor and companions belong together, from a Qloo call."],
+  ["Rising now", "10%", "Scope: your city. Whether it is trending."],
+  ["Known but not too common", "10%", "Scope: your city's culture. Popular enough to draw a crowd, niche enough to feel like identity."],
+  ["Right kind of night", "15%", "Scope: a rule for your kind of venue. How well the format suits it. Not a Qloo call."],
 ] as const;
 
 async function usage(): Promise<UsageRow[]> {
@@ -68,6 +76,10 @@ export default async function HowPage() {
         <p className="mt-3 text-lg">
           {APP_NAME} turns a venue&apos;s empty weeknight into a weekly club for people with the same taste. This page is for anyone who wants to check what is real, what is Qloo, and what is not claimed.
         </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button href="/#start" variant="cta">Start with your venue</Button>
+          <Button href="/sample" variant="secondary">Explore a sample venue</Button>
+        </div>
       </header>
 
       <section aria-labelledby="problem" className="flex flex-col gap-4">
@@ -168,6 +180,21 @@ export default async function HowPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section aria-labelledby="reach" className="flex flex-col gap-4">
+        <h2 id="reach" className="text-[2rem]">
+          How far each signal reaches
+        </h2>
+        <p className="max-w-[68ch]">Qloo reads film, music, TV, book and podcast taste for a whole city, so that part is the same for every venue in it. What makes a club fit your venue is the other two.</p>
+        <ul className="grid gap-3 md:grid-cols-3">
+          {REACH.map((r) => (
+            <li key={r.scope} className="rounded-lg border-2 border-ink bg-card p-4 shadow-hard">
+              <p className="text-sm font-bold uppercase tracking-[0.1em] text-ember-ink">{r.scope}</p>
+              <p className="mt-1">{r.text}</p>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section aria-labelledby="score" className="flex flex-col gap-4">

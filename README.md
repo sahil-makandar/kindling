@@ -2,9 +2,9 @@
 
 Where strangers become regulars.
 
-Kindling is an AI agent that turns a venue's empty weeknight into a weekly club for people with the same taste. It reads what the neighbourhood really loves with the Qloo taste API, designs and scores the clubs, writes the kit, seats guests by taste at check-in, and re-tunes the plan every week from who actually came back.
+Kindling is an AI agent that turns a venue's empty weeknight into a weekly club for people with the same taste. It reads your city's taste, the places within 1 km and your venue's own crowd with the Qloo taste API, designs and scores the clubs, writes the kit, seats guests by taste at check-in, and re-tunes the plan every week from who actually came back.
 
-- Live demo: (added here after the Vercel deploy, and on the Devpost page)
+- Live site: https://kindling-sand-eight.vercel.app/ (deploy notes in DEPLOY.md)
 - Source: https://github.com/sahil-makandar/kindling
 - Licence: MIT, see `LICENSE`
 - Built for the Qloo Agentic Hackathon
@@ -30,7 +30,7 @@ Every run also shows a **Without Qloo** comparison: the same question put to a p
 
 ## Why it only works with Qloo
 
-A language model on its own says "host a trivia night". Qloo knows what this particular block loves, what is rising there, which things belong together, and what each guest's favourites say about their taste. Remove Qloo and every club in this app becomes a generic guess, and the seating has nothing to match on.
+A language model on its own says "host a trivia night". Qloo knows what your city loves, what is rising there, which places sit within 1 km of your door, which things belong together, and what each guest's favourites say about their taste. Remove Qloo and every club in this app becomes a generic guess, and the seating has nothing to match on.
 
 ## The loop
 
@@ -87,7 +87,7 @@ app/                    Next.js routes: pages and thin API handlers
   clubs/[id]/live       host view: tables, waiting list, close the night
   clubs/[id]/weeks      weekly report and the Coach
   c/[code]              guest check-in (mobile)
-  how, demo             how it works, and the demo venue
+  how, sample, venues  how it works, the sample venue, and your venues
   api/                  runs, clubs, check-in, search, sessions, recommendations
 src/
   config/               brand constant, validated environment
@@ -106,7 +106,7 @@ tests/                  Vitest, no network
 docs/                   planning docs
 ```
 
-Stack: Next.js (App Router), TypeScript in strict mode, Tailwind CSS, the Vercel AI SDK with a swappable free-tier-first provider chain (Gemini, then Groq, then OpenRouter), Zod on every external input and every Qloo or model response, Postgres on Neon with Drizzle, Leaflet with OpenStreetMap tiles, Nominatim for geocoding (cached, one request a second), `qrcode` and `html-to-image`.
+Stack: Next.js (App Router), TypeScript in strict mode, Tailwind CSS, the Vercel AI SDK with a swappable free-tier-first provider chain (Gemini, then OpenRouter), Zod on every external input and every Qloo or model response, Postgres on Neon with Drizzle, Leaflet with OpenStreetMap tiles, Nominatim for geocoding (cached, one request a second), `qrcode` and `html-to-image`.
 
 Each agent stage is its own request (`maxDuration` 60 s), so no single request runs long. A run is a small state machine in the database; refreshing the page picks it up where it is.
 
@@ -129,7 +129,7 @@ The defaults (`QLOO_MODE=fixtures`, `LLM_MODE=mock`) need no API keys. The app s
 | `QLOO_MODE` | Always | `fixtures` (offline), `live` (real API), `record` (live and saves raw responses to the git-ignored `fixtures/live/`, local only) |
 | `QLOO_API_KEY`, `QLOO_BASE_URL` | `live` and `record` | The hackathon key only works on `https://hackathon.api.qloo.com` |
 | `LLM_MODE` | Always | `mock` (canned) or `live` |
-| `LLM_PROVIDER`, `LLM_FALLBACK_PROVIDERS`, `LLM_MODEL`, `LLM_MODEL_FAST` | `live` | `google`, `groq` or `openai-compatible`; models come from the environment, never the code |
+| `LLM_PROVIDER`, `LLM_FALLBACK_PROVIDERS`, `LLM_MODEL`, `LLM_MODEL_FAST` | `live` | `google` or `openai-compatible` (Groq is supported but not in the default chain); models come from the environment, never the code |
 | `GOOGLE_GENERATIVE_AI_API_KEY`, `GROQ_API_KEY`, `OPENAI_COMPATIBLE_*` | `live` | Only the providers you use |
 | `RATE_LIMIT_PER_HOUR` | Optional | Runs per IP per hour, default 10 |
 | `NOMINATIM_USER_AGENT` | Optional | Identifies the app to Nominatim |
@@ -138,7 +138,7 @@ The defaults (`QLOO_MODE=fixtures`, `LLM_MODE=mock`) need no API keys. The app s
 npm run dev            # local server
 npm run check          # typecheck, eslint, copy lint, tests
 npm run build          # production build
-npm run db:seed-demo   # builds the fictional demo venue with four simulated weeks
+npm run db:seed-demo   # builds the fictional sample venue with four simulated weeks
 npm run qloo:spike     # live probe of the Qloo API; raw responses stay on your machine
 ```
 
@@ -155,7 +155,7 @@ To build the real demo, run `QLOO_MODE=live npm run db:seed-demo -- --force`. It
 - The language model receives only numbers and tag names for a room, never a name or one person's picks.
 - A cookie recognises a returning guest only after they tick a box, and holds a random code.
 - "Forget me" on the check-in confirmation deletes the guest and every check-in linked to them.
-- The demo venue is fictional and its four weeks are simulated. Every page that shows them says so.
+- The sample venue is fictional and its four weeks are simulated. Every page that shows them says so.
 - Trivia is drafted by a language model and marked "Check before use".
 - When no model answers, the page says the wording came from a template. Scores, seating and decisions are computed by code either way.
 

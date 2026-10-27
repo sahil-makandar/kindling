@@ -6,7 +6,7 @@ import { LandingForm } from "@/src/ui/LandingForm";
 
 const STEPS = [
   { title: "Read the neighbourhood", body: "Qloo shows what your city loves in film, music, books and food, what places within a kilometre of your door are known for, and what your venue's own crowd likes. " + APP_NAME + " keeps the evidence." },
-  { title: "Design the club", body: "The agent builds clubs this block over-indexes on, scores each one with a plain formula, and writes the poster, the run of show and the listing." },
+  { title: "Design the club", body: "The agent builds clubs that suit your venue, your neighbours and your city, scores each one with a plain formula, and writes the poster, the run of show and the listing." },
   { title: "Bring them back", body: "People check in with a QR code and tap three favourites. " + APP_NAME + " seats strangers who share a taste, then re-tunes the plan every week." },
 ] as const;
 
