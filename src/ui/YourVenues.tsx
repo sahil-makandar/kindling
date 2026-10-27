@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, X } from "lucide-react";
-import { forgetRemembered, readRemembered, type RememberedVenue } from "@/src/journey/remember";
+import { forgetRemembered, readRemembered, type RememberedVenue } from "@/src/progress/remember";
 import { NIGHT_LABEL, VENUE_TYPE_LABEL } from "@/src/runs/schema";
 import { Button } from "./Button";
 import { EmptyState } from "./EmptyState";
@@ -19,7 +19,8 @@ export function YourVenues() {
   const [venues, setVenues] = useState<RememberedVenue[] | null>(null);
   useEffect(() => {
     // Read after mount: localStorage does not exist on the server.
-    setVenues(readRemembered());
+    const timer = setTimeout(() => setVenues(readRemembered()), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   if (venues === null) return <p className="text-ink-soft" role="status">Looking for your venues...</p>;

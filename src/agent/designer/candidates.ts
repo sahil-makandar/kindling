@@ -1,5 +1,6 @@
 import { DOMAIN_LABEL, planFor, SCOUT_DOMAINS, type ScoutDomain } from "../scout/plan";
 import type { PoolSignal } from "../scout/pool";
+import { friendlyName, isColdName } from "../naming";
 
 // The Designer's pure logic (PRODUCT_SPEC section 5.1). The model proposes "hidden clubs", each built on things the
 // Scout actually found. To make invented ids impossible, the model never sees Qloo ids: it sees short aliases (m1, a3,
@@ -171,7 +172,7 @@ export function resolveCandidates(
   const usedAnchors = new Set<string>();
 
   for (const candidate of raw) {
-    const title = trimTitle(candidate.title);
+    let title = trimTitle(candidate.title);
     const drop = (reason: string) => dropped.push({ title: title || "an idea", reason });
 
     const anchorSignal = aliases.get(candidate.anchor);
@@ -214,6 +215,8 @@ export function resolveCandidates(
     }
 
     const refs = crossing.slice(0, 2).map(toRef);
+    // A cold, template-sounding name is replaced by a plain one built from what the club is about.
+    if (isColdName(title)) title = friendlyName({ anchor: anchor.name, companion: refs[0]?.name ?? null, format: candidate.format, night: null });
     const why = plain(candidate.why);
     kept.push({
       title,
@@ -229,16 +232,6 @@ export function resolveCandidates(
 }
 
 // ---- the standard plan: used when no model can answer, and to top up when too few ideas survive ----
-
-const TITLE_SUFFIX: Record<ClubFormat, string> = {
-  discussion_club: "Club",
-  listening_night: "Listening Night",
-  book_club: "Book Club",
-  game_night: "Game Night",
-  trivia_night: "Trivia Night",
-  fan_meetup: "Fan Night",
-  tasting: "Tasting Night",
-};
 
 function formatFor(domain: ScoutDomain, venueType: string, hasPlaceCompanion: boolean): ClubFormat {
   if (domain === "book") return "book_club";
@@ -288,7 +281,7 @@ export function standardCandidates(
       const sharedTags = anchorItem.tags.filter((t) => companion.tags.some((c) => normal(c) === normal(t))).slice(0, 2);
       const evidence = sharedTags.length > 0 ? ` because they share ${sharedTags.join(" and ")}` : " because both are loved in this area";
       out.push({
-        title: `${shortName(anchorItem.name)} ${TITLE_SUFFIX[format]}`,
+        title: friendlyName({ anchor: anchorItem.name, companion: companion.name, format, night: null }),
         anchor: anchorItem.alias,
         companions,
         format,

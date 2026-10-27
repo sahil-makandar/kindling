@@ -57,6 +57,9 @@ function CallRow({ call }: { call: EvidenceCall }) {
   );
 }
 
+// The three bars shown on a card: how the club fits this venue, its surroundings and its city. The drawer lists every part.
+const LOCAL_BARS: ComponentView["name"][] = ["venueCrowd", "nearbyPlaces", "cityCulture"];
+
 function EvidenceBody({ club, focus }: { club: CandidateView; focus: ComponentView["name"] | null }) {
   if (club.components.length === 0) {
     return <p className="text-ink-soft">This club was not scored, so there is no evidence trail for it. The run that made it ended before the checking stage.</p>;
@@ -70,7 +73,10 @@ function EvidenceBody({ club, focus }: { club: CandidateView; focus: ComponentVi
         {club.components.map((part) => (
           <li key={part.name} className={cx("rounded-md border-2 p-3", focus === part.name ? "border-marigold bg-marigold/20" : "border-rule")}>
             <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-lg">{COMPONENT_LABEL[part.name]}</h3>
+              <div>
+                <h3 className="text-lg">{COMPONENT_LABEL[part.name]}</h3>
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-ember-ink">Scope: {part.scope}</p>
+              </div>
               <p className="font-poster text-3xl font-black leading-none">
                 {Math.round(part.value * 100)}
                 <span className="ml-1 text-sm font-normal text-ink-soft">weight {Math.round(part.weight * 100)}%</span>
@@ -162,9 +168,11 @@ export function PicksView({ data }: { data: CandidatesView }) {
             </div>
             {!club.verified && <p className="mt-3 text-sm font-bold">Not checked with a second Qloo call, so the fit between its parts is a neutral guess.</p>}
             <div className="mt-4 flex flex-col">
-              {club.components.map((part) => (
-                <ScoreBar key={part.name} label={COMPONENT_LABEL[part.name]} value={part.value} onSelect={() => setOpen({ id: club.id, focus: part.name })} />
-              ))}
+              {club.components
+                .filter((part) => LOCAL_BARS.includes(part.name))
+                .map((part) => (
+                  <ScoreBar key={part.name} label={COMPONENT_LABEL[part.name]} scope={part.scope} value={part.value} onSelect={() => setOpen({ id: club.id, focus: part.name })} />
+                ))}
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button variant="secondary" onClick={() => setOpen({ id: club.id, focus: null })}>

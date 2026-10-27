@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import type { Db } from "@/src/db/client";
 import { clubs, runs, sessions, venues } from "@/src/db/schema";
 
-// Where a venue is on its journey, for the stepper. Cheap lookups only, one run or one club in, a few flags out.
+// Where a venue is on its progress, for the stepper. Cheap lookups only, one run or one club in, a few flags out.
 
 export const STEPS = [
   { key: "read", label: "Read the neighbourhood", short: "Read" },
@@ -13,7 +13,7 @@ export const STEPS = [
 ] as const;
 export type StepKey = (typeof STEPS)[number]["key"];
 
-export type Journey = {
+export type VenueProgress = {
   venueName: string;
   venueType: string;
   slowNight: string;
@@ -26,9 +26,9 @@ export type Journey = {
   checkIns: boolean;
 };
 
-export type JourneyLink = { key: StepKey; label: string; short: string; href: string | null; state: "done" | "current" | "todo" };
+export type ProgressLink = { key: StepKey; label: string; short: string; href: string | null; state: "done" | "current" | "todo" };
 
-export async function getJourney(db: Db, ref: { runId?: string; clubId?: string }): Promise<Journey | null> {
+export async function getVenueProgress(db: Db, ref: { runId?: string; clubId?: string }): Promise<VenueProgress | null> {
   let runId = ref.runId ?? null;
   let clubId = ref.clubId ?? null;
 
@@ -68,7 +68,7 @@ export async function getJourney(db: Db, ref: { runId?: string; clubId?: string 
 }
 
 // Links for each step. A step is clickable once it can be opened. The current step has no link of its own.
-export function journeyLinks(j: Journey, current: StepKey): JourneyLink[] {
+export function progressLinks(j: VenueProgress, current: StepKey): ProgressLink[] {
   const hrefs: Record<StepKey, string | null> = {
     read: j.runId ? `/runs/${j.runId}` : null,
     pick: j.runId && j.runDone ? `/runs/${j.runId}/clubs` : null,

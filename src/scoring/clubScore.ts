@@ -4,16 +4,30 @@ import type { ClubFormat } from "@/src/agent/designer/candidates";
 // from 0 to 1 with a plain-English reason and the Qloo calls it came from, so the page can show exactly why a club
 // ranks where it does. Everything here is a pure function; the Verifier stage gathers the inputs.
 
-export const COMPONENTS = ["localAffinity", "coherence", "venueFit", "momentum", "sweetSpot", "formatFit"] as const;
+export const COMPONENTS = ["cityCulture", "venueCrowd", "nearbyPlaces", "coherence", "momentum", "sweetSpot", "formatFit"] as const;
 export type ComponentName = (typeof COMPONENTS)[number];
 
+// Qloo's media taste is city-wide, so the two parts that read this venue and its surroundings carry more weight than the
+// city's culture does: 0.20 the venue's crowd, 0.15 the places within 1 km, 0.15 the city's culture.
 export const WEIGHTS: Record<ComponentName, number> = {
-  localAffinity: 0.3,
-  coherence: 0.2,
-  venueFit: 0.15,
+  cityCulture: 0.15,
+  venueCrowd: 0.2,
+  nearbyPlaces: 0.15,
+  coherence: 0.15,
   momentum: 0.1,
-  sweetSpot: 0.15,
-  formatFit: 0.1,
+  sweetSpot: 0.1,
+  formatFit: 0.15,
+};
+
+// How far each part of the score reaches, in the words shown on screen.
+export const SCOPE_LABEL: Record<ComponentName, string> = {
+  cityCulture: "your city's culture",
+  venueCrowd: "your venue's crowd",
+  nearbyPlaces: "places within 1 km",
+  coherence: "how the club fits together",
+  momentum: "rising in your city",
+  sweetSpot: "your city's culture",
+  formatFit: "a rule for your kind of venue",
 };
 
 export type Component = {
@@ -73,9 +87,9 @@ export function percentileRank(value: number, values: number[]): number {
 
 export const AREA_SCAN_SIZE = 15;
 
-// How strongly the area loves the anchor. Qloo's affinity for an area's top results is between 0.99 and 1.0, so raw
+// How strongly the city loves the anchor (Qloo reads media taste for the whole city, not the block). Qloo's affinity for an area's top results is between 0.99 and 1.0, so raw
 // affinity cannot rank anything. Position in the scan and the affinity rescaled within the domain's range both count.
-export function localAffinityComponent(args: {
+export function cityCultureComponent(args: {
   anchorName: string;
   domainLabel: string;
   rank: number | null;
@@ -87,7 +101,7 @@ export function localAffinityComponent(args: {
   if (rank === null || affinity === null) {
     return {
       value: 0.5,
-      reason: `${args.anchorName} was not in the area scan for ${args.domainLabel}, so its local strength is a neutral guess.`,
+      reason: `${args.anchorName} was not in the city scan for ${args.domainLabel}, so its strength is a neutral guess.`,
       callIds: [],
       flagged: true,
     };
@@ -97,7 +111,7 @@ export function localAffinityComponent(args: {
   const value = round(0.5 * rankScore + 0.5 * rescaled, 3);
   return {
     value,
-    reason: `Number ${rank + 1} of ${AREA_SCAN_SIZE} in what this area loves in ${args.domainLabel} (affinity ${affinity.toFixed(3)}, ${Math.round(rescaled * 100)}% of the way up its range).`,
+    reason: `Number ${rank + 1} of ${AREA_SCAN_SIZE} in what your city loves in ${args.domainLabel} (affinity ${affinity.toFixed(3)}, ${Math.round(rescaled * 100)}% of the way up its range).`,
     callIds: args.callId ? [args.callId] : [],
   };
 }
@@ -151,25 +165,6 @@ export function coherenceComponent(args: { anchorName: string; companions: Compa
   };
 }
 
-// Which kinds of thing suit which venue: the order the Scout reads domains in for each venue type, as a 1.0 to 0.6 scale.
-export function venueFitComponent(args: { venueType: string; domain: string; domainLabel: string; planOrder: readonly string[] }): Component {
-  const index = args.planOrder.indexOf(args.domain);
-  const venue = args.venueType.replace("_", " ");
-  if (index < 0) {
-    return {
-      value: 0.6,
-      reason: `${args.domainLabel} is not one of the first things a ${venue} leans on, so it fits a little less.`,
-      callIds: [],
-    };
-  }
-  const value = round(1 - (0.4 * index) / Math.max(1, args.planOrder.length - 1), 3);
-  return {
-    value,
-    reason: index === 0 ? `${args.domainLabel} is what a ${venue} leans on most.` : `${args.domainLabel} is number ${index + 1} of the things a ${venue} leans on.`,
-    callIds: [],
-  };
-}
-
 // Is the anchor rising here? 1.0 for the top 5 of the trend results, 0.6 for the top 15, 0.3 otherwise. Books have no
 // trend data in Qloo (the API answers 400), so they get a neutral value rather than a penalty.
 export function momentumComponent(args: { anchorName: string; trendRank: number | null; supported: boolean; callId: string | null }): Component {
@@ -177,12 +172,12 @@ export function momentumComponent(args: { anchorName: string; trendRank: number 
     return { value: 0.5, reason: "Qloo has no trend data for this kind of thing yet, so momentum is neutral.", callIds: [], flagged: true };
   }
   if (args.trendRank === null) {
-    return { value: 0.3, reason: `${args.anchorName} was not among what is rising in this area.`, callIds: [] };
+    return { value: 0.3, reason: `${args.anchorName} was not among what is rising in your city.`, callIds: [] };
   }
   const value = args.trendRank < 5 ? 1 : args.trendRank < 15 ? 0.6 : 0.3;
   return {
     value,
-    reason: `${args.anchorName} is number ${args.trendRank + 1} of what is rising in this area.`,
+    reason: `${args.anchorName} is number ${args.trendRank + 1} of what is rising in your city.`,
     callIds: args.callId ? [args.callId] : [],
   };
 }
@@ -195,7 +190,7 @@ export function sweetSpotComponent(args: { anchorName: string; popularity: numbe
   const where = args.percentile < 0.35 ? "very niche" : args.percentile > 0.85 ? "a household name" : "well known without being everywhere";
   return {
     value,
-    reason: `${args.anchorName} sits at the ${Math.round(args.percentile * 100)}th percentile of popularity among what this area loves: ${where}. The best spot is around the 60th.`,
+    reason: `${args.anchorName} sits at the ${Math.round(args.percentile * 100)}th percentile of popularity among what your city loves: ${where}. The best spot is around the 60th.`,
     callIds: [],
   };
 }

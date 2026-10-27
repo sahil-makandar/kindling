@@ -8,14 +8,13 @@ import {
   FORMAT_FIT,
   formatFitComponent,
   formatFitValue,
-  localAffinityComponent,
+  cityCultureComponent,
   momentumComponent,
   percentileRank,
   rankScored,
   scoreClub,
   sweetSpot,
   sweetSpotComponent,
-  venueFitComponent,
   WEIGHTS,
   type Breakdown,
   type Component,
@@ -28,37 +27,39 @@ const breakdown = (v: Record<string, number>): Breakdown =>
 describe("weights", () => {
   it("add up to exactly 1, with the spec's values", () => {
     expect(Object.values(WEIGHTS).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
-    expect(WEIGHTS).toEqual({ localAffinity: 0.3, coherence: 0.2, venueFit: 0.15, momentum: 0.1, sweetSpot: 0.15, formatFit: 0.1 });
+    expect(WEIGHTS).toEqual({ cityCulture: 0.15, venueCrowd: 0.2, nearbyPlaces: 0.15, coherence: 0.15, momentum: 0.1, sweetSpot: 0.1, formatFit: 0.15 });
+    // The two parts that read this venue and its surroundings outweigh the city-wide part.
+    expect(WEIGHTS.venueCrowd + WEIGHTS.nearbyPlaces).toBeGreaterThan(WEIGHTS.cityCulture);
   });
 });
 
 describe("scoreClub", () => {
   it("gives 100 for a perfect club and 0 for an empty one", () => {
-    expect(scoreClub(breakdown({ localAffinity: 1, coherence: 1, venueFit: 1, momentum: 1, sweetSpot: 1, formatFit: 1 })).score).toBe(100);
+    expect(scoreClub(breakdown({ cityCulture: 1, venueCrowd: 1, nearbyPlaces: 1, coherence: 1, momentum: 1, sweetSpot: 1, formatFit: 1 })).score).toBe(100);
     expect(scoreClub(breakdown({})).score).toBe(0);
   });
 
   it("gives known inputs a known score", () => {
-    const { score } = scoreClub(breakdown({ localAffinity: 0.8, coherence: 0.5, venueFit: 1, momentum: 0.6, sweetSpot: 0.9, formatFit: 0.7 }));
-    // 100 * (0.30 * 0.8 + 0.20 * 0.5 + 0.15 * 1 + 0.10 * 0.6 + 0.15 * 0.9 + 0.10 * 0.7)
-    expect(score).toBe(75.5);
+    const { score } = scoreClub(breakdown({ cityCulture: 0.8, venueCrowd: 0.5, nearbyPlaces: 1, coherence: 0.5, momentum: 0.6, sweetSpot: 0.9, formatFit: 0.7 }));
+    // 100 * (0.15 * 0.8 + 0.20 * 0.5 + 0.15 * 1 + 0.15 * 0.5 + 0.10 * 0.6 + 0.10 * 0.9 + 0.15 * 0.7)
+    expect(score).toBe(70);
   });
 
-  it("weights local affinity three times as much as format fit", () => {
-    const local = scoreClub(breakdown({ localAffinity: 1 })).score;
-    const format = scoreClub(breakdown({ formatFit: 1 })).score;
-    expect(local).toBe(30);
-    expect(format).toBe(10);
+  it("weights the venue's crowd more than the city's culture", () => {
+    const crowd = scoreClub(breakdown({ venueCrowd: 1 })).score;
+    const city = scoreClub(breakdown({ cityCulture: 1 })).score;
+    expect(crowd).toBe(20);
+    expect(city).toBe(15);
   });
 
   it("keeps out-of-range values inside 0 to 1 and does not change its input", () => {
-    const input = breakdown({ localAffinity: 2, coherence: -1 });
-    expect(scoreClub(input).score).toBe(30);
-    expect(input.localAffinity.value).toBe(2);
+    const input = breakdown({ cityCulture: 2, coherence: -1 });
+    expect(scoreClub(input).score).toBe(15);
+    expect(input.cityCulture.value).toBe(2);
   });
 
   it("is deterministic", () => {
-    const b = breakdown({ localAffinity: 0.123, coherence: 0.456, venueFit: 0.789, momentum: 0.3, sweetSpot: 0.2, formatFit: 0.9 });
+    const b = breakdown({ cityCulture: 0.123, coherence: 0.456, nearbyPlaces: 0.789, momentum: 0.3, sweetSpot: 0.2, formatFit: 0.9 });
     expect(scoreClub(b).score).toBe(scoreClub(b).score);
   });
 });
@@ -154,7 +155,7 @@ describe("momentum", () => {
 
   it("links the call that showed the trend", () => {
     expect(momentumComponent({ anchorName: "X", trendRank: 2, supported: true, callId: "call-9" }).callIds).toEqual(["call-9"]);
-    expect(momentumComponent({ anchorName: "X", trendRank: 2, supported: true, callId: "call-9" }).reason).toBe("X is number 3 of what is rising in this area.");
+    expect(momentumComponent({ anchorName: "X", trendRank: 2, supported: true, callId: "call-9" }).reason).toBe("X is number 3 of what is rising in your city.");
   });
 });
 
@@ -162,7 +163,7 @@ describe("local affinity", () => {
   const range = { min: 0.97, max: 1 };
 
   it("is 1 for the top of the scan at the top of the range", () => {
-    expect(localAffinityComponent({ anchorName: "X", domainLabel: "film", rank: 0, affinity: 1, range, callId: "c1" })).toMatchObject({
+    expect(cityCultureComponent({ anchorName: "X", domainLabel: "film", rank: 0, affinity: 1, range, callId: "c1" })).toMatchObject({
       value: 1,
       callIds: ["c1"],
     });
@@ -170,25 +171,25 @@ describe("local affinity", () => {
 
   it("blends the position in the scan with the rescaled affinity", () => {
     // rank 7 of 15: 1 - 7/14 = 0.5. affinity 0.985 is halfway up 0.97 to 1.
-    const result = localAffinityComponent({ anchorName: "X", domainLabel: "film", rank: 7, affinity: 0.985, range, callId: null });
+    const result = cityCultureComponent({ anchorName: "X", domainLabel: "film", rank: 7, affinity: 0.985, range, callId: null });
     expect(result.value).toBe(0.5);
-    expect(result.reason).toBe("Number 8 of 15 in what this area loves in film (affinity 0.985, 50% of the way up its range).");
+    expect(result.reason).toBe("Number 8 of 15 in what your city loves in film (affinity 0.985, 50% of the way up its range).");
   });
 
   it("cannot be fooled by Qloo's saturated affinity: 0.9999 against 0.9998 is a difference of position, not of affinity", () => {
-    const first = localAffinityComponent({ anchorName: "A", domainLabel: "film", rank: 0, affinity: 0.9999, range: { min: 0.9998, max: 0.9999 }, callId: null });
-    const last = localAffinityComponent({ anchorName: "B", domainLabel: "film", rank: AREA_SCAN_SIZE - 1, affinity: 0.9998, range: { min: 0.9998, max: 0.9999 }, callId: null });
+    const first = cityCultureComponent({ anchorName: "A", domainLabel: "film", rank: 0, affinity: 0.9999, range: { min: 0.9998, max: 0.9999 }, callId: null });
+    const last = cityCultureComponent({ anchorName: "B", domainLabel: "film", rank: AREA_SCAN_SIZE - 1, affinity: 0.9998, range: { min: 0.9998, max: 0.9999 }, callId: null });
     expect(first.value).toBe(1);
     expect(last.value).toBe(0);
   });
 
   it("handles a list where every affinity is the same", () => {
-    const only = localAffinityComponent({ anchorName: "X", domainLabel: "film", rank: 0, affinity: 1, range: { min: 1, max: 1 }, callId: null });
+    const only = cityCultureComponent({ anchorName: "X", domainLabel: "film", rank: 0, affinity: 1, range: { min: 1, max: 1 }, callId: null });
     expect(only.value).toBe(1);
   });
 
   it("is neutral and flagged when the anchor was not in the area scan", () => {
-    expect(localAffinityComponent({ anchorName: "X", domainLabel: "film", rank: null, affinity: null, range: null, callId: null })).toMatchObject({
+    expect(cityCultureComponent({ anchorName: "X", domainLabel: "film", rank: null, affinity: null, range: null, callId: null })).toMatchObject({
       value: 0.5,
       flagged: true,
       callIds: [],
@@ -262,27 +263,6 @@ describe("coherence", () => {
     const notCarried = coherenceComponent({ anchorName: "A", companions: [{ kind: "tag", name: "Horror", carriedByAnchor: false }], callIds: [], verified: false });
     expect(notCarried.value).toBe(0.4);
     expect(notCarried.reason).toContain("Horror is not one of A's tags");
-  });
-});
-
-describe("venue fit", () => {
-  const cafe = ["movie", "book", "artist", "tv_show", "podcast"];
-
-  it("is 1 for what the venue leans on most and falls to 0.6 for the last", () => {
-    const fit = (domain: string) => venueFitComponent({ venueType: "cafe", domain, domainLabel: domain, planOrder: cafe }).value;
-    expect(fit("movie")).toBe(1);
-    expect(fit("podcast")).toBe(0.6);
-    expect(fit("book")).toBeGreaterThan(fit("artist"));
-  });
-
-  it("gives something outside the plan the floor value", () => {
-    expect(venueFitComponent({ venueType: "cafe", domain: "tag", domainLabel: "genres", planOrder: cafe }).value).toBe(0.6);
-  });
-
-  it("says what the venue leans on", () => {
-    expect(venueFitComponent({ venueType: "music_venue", domain: "artist", domainLabel: "music", planOrder: ["artist"] }).reason).toBe(
-      "music is what a music venue leans on most.",
-    );
   });
 });
 

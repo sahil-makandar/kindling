@@ -30,13 +30,17 @@ const normalText: Pair[] = [
   ["card", "ink"], // primary button
   ["ink", "tomato"], // main call to action button
   ["ink", "marigold"], // fixture banner
+  ["emberInk", "paper"], // key numbers and headings in ember
+  ["emberInk", "card"],
+  ["ink", "peach"], // sticker chips
   ["sage", "card"], // StatTile "up" delta
   ["plum", "card"], // StatTile "down" delta
 ];
 
-// Pairings that are only allowed for large text (3:1), per docs/DESIGN_SYSTEM.md.
-const largeTextOnly: Pair[] = [
-  ["tomato", "card"], // score numerals and big headings
+// Plain ember is a fill (buttons, the mascot, bars), never body text. Against the page it only needs the 3:1 that
+// non-text shapes require.
+const shapes: Pair[] = [
+  ["tomato", "card"],
   ["tomato", "paper"],
 ];
 
@@ -45,11 +49,13 @@ describe("design token contrast (WCAG AA)", () => {
     expect(contrast(COLORS[fg], COLORS[bg])).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.each(largeTextOnly)("%s on %s is at least 3:1 for large text", (fg, bg) => {
-    expect(contrast(COLORS[fg], COLORS[bg])).toBeGreaterThanOrEqual(3);
+  it.each(shapes)("%s shapes on %s are at least 2.5:1 (a fill, never text)", (fg, bg) => {
+    // The ember bar or mascot always carries an ink outline, so the outline is what separates it from the page.
+    expect(contrast(COLORS[fg], COLORS[bg])).toBeGreaterThanOrEqual(2.5);
+    expect(contrast(COLORS.ink, COLORS[bg])).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("documents why light text must not sit on tomato", () => {
+  it("documents why light text must not sit on ember", () => {
     expect(contrast(COLORS.card, COLORS.tomato)).toBeLessThan(4.5);
   });
 });

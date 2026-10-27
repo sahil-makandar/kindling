@@ -3,19 +3,21 @@ import type { ComponentName } from "@/src/scoring/clubScore";
 // Plain-language labels for the "How we know" panel. Pure, so the wording is tested.
 
 export const COMPONENT_LABEL: Record<ComponentName, string> = {
-  localAffinity: "Loved around here",
+  cityCulture: "Loved in your city",
+  venueCrowd: "Fits your venue's crowd",
+  nearbyPlaces: "Fits places near you",
   coherence: "Fits together",
-  venueFit: "Fits your venue",
   momentum: "Rising now",
   sweetSpot: "Known but not too common",
   formatFit: "Right kind of night",
 };
 
 export const COMPONENT_HELP: Record<ComponentName, string> = {
-  localAffinity: "How strongly people near the venue favour the anchor, ranked against everything else Qloo returned for the area.",
+  cityCulture: "How strongly your city favours the anchor in film, music, TV, books or podcasts. Qloo reads this for the whole city, not the block.",
+  venueCrowd: "Whether the club's taste shows up in the tags of your venue on Qloo and of venues like it. If your venue is not on Qloo, places of the same kind nearby stand in.",
+  nearbyPlaces: "Whether the places within 1 km carry the same words as the club, and whether the club uses one of them. This is the most local signal Qloo gives.",
   coherence: "Whether the anchor and its companions really belong together, checked with a separate Qloo call.",
-  venueFit: "Whether people who already like places like yours also like the anchor.",
-  momentum: "Whether the anchor is rising in the area right now.",
+  momentum: "Whether the anchor is rising in your city right now.",
   sweetSpot: "Popular enough to draw a crowd, niche enough to feel like an identity.",
   formatFit: "How well the format suits this kind of venue. This one is a rule, not a Qloo call.",
 };

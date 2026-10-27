@@ -1,4 +1,5 @@
 import { FORMAT_LABEL } from "../designer/candidates";
+import { NAMING_RULES } from "../naming";
 import type { KitContext } from "../producer/kit";
 
 // The Producer's prompts (PRODUCT_SPEC section 9). The model sees the chosen club's names and the venue's business
@@ -10,7 +11,8 @@ export const PRODUCER_SYSTEM = [
   "Be specific to the club's theme and the venue type. Staff are busy: every instruction must be something they can do with the room and drinks they already have.",
   "Never plan to screen a full film or play a full album from a streaming service in public. Use short clips of about two minutes or a few songs to start a conversation.",
   "The night starts at 7:30 pm, which is when doors open. Use that time wherever you mention a time.",
-  "clubName: at most 5 words. hook: one line, at most 110 characters.",
+  "clubName: two to five words. " + NAMING_RULES,
+  "hook: one line, at most 110 characters.",
   "runOfShow: 5 to 7 steps. minute is when the step starts, counting from doors open at 0, increasing, and every step starts before the night ends. durationMinutes is 90 to 120.",
   "comeAloneRitual: how a person who arrives alone is welcomed and placed. nameTagPrompt: a line for the name tag such as 'Ask me about ...'.",
   "hostScript: what the host says to open the night, at most 180 words.",

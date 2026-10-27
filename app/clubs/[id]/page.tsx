@@ -8,7 +8,7 @@ import { originFromHeaders } from "@/src/clubs/origin";
 import { getClub } from "@/src/clubs/state";
 import { requireUuid } from "@/src/runs/http";
 import { ClubKitView } from "@/src/ui/ClubKitView";
-import { getJourney } from "@/src/journey/journey";
+import { getVenueProgress } from "@/src/progress/progress";
 import { VenueShell } from "@/src/ui/VenueShell";
 import { KitLoader } from "@/src/ui/KitLoader";
 
@@ -25,11 +25,11 @@ export default async function ClubKitPage({ params }: { params: Promise<{ id: st
   }
   const club = await getClub(getDb(), id);
   if (!club) notFound();
-  const journey = await getJourney(getDb(), { clubId: id });
-  if (!journey) notFound();
+  const progress = await getVenueProgress(getDb(), { clubId: id });
+  if (!progress) notFound();
   if (!club.kit) {
     return (
-      <VenueShell journey={journey} current="kit">
+      <VenueShell progress={progress} current="kit">
         <KitLoader clubId={club.id} title={club.title} />
       </VenueShell>
     );
@@ -40,7 +40,7 @@ export default async function ClubKitPage({ params }: { params: Promise<{ id: st
   const checkInUrl = session ? `${originFromHeaders(await headers())}/c/${session.checkInCode}` : null;
   const qr = checkInUrl ? await QRCode.toDataURL(checkInUrl, { margin: 1, width: 640, errorCorrectionLevel: "M", color: { dark: COLORS.ink, light: COLORS.card } }) : "";
   return (
-    <VenueShell journey={journey} current="kit">
+    <VenueShell progress={progress} current="kit">
       <ClubKitView club={club} kit={club.kit} qr={qr} checkInUrl={checkInUrl ? new URL(checkInUrl).pathname : null} />
     </VenueShell>
   );

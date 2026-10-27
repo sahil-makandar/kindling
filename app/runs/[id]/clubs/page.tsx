@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/src/db/client";
 import { requireUuid } from "@/src/runs/http";
 import { getCandidates } from "@/src/runs/state";
-import { getJourney } from "@/src/journey/journey";
+import { getVenueProgress } from "@/src/progress/progress";
 import { VenueShell } from "@/src/ui/VenueShell";
 import { PicksView } from "@/src/ui/PicksView";
 
@@ -20,10 +20,10 @@ export default async function ClubPicksPage({ params }: { params: Promise<{ id: 
   }
   const data = await getCandidates(getDb(), id);
   if (!data) notFound();
-  const journey = await getJourney(getDb(), { runId: id });
-  if (!journey) notFound();
+  const progress = await getVenueProgress(getDb(), { runId: id });
+  if (!progress) notFound();
   return (
-    <VenueShell journey={journey} current="pick">
+    <VenueShell progress={progress} current="pick">
       <PicksView data={data} />
     </VenueShell>
   );

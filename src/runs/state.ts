@@ -4,7 +4,7 @@ import { baselines, candidates, llmOutputs, qlooCalls, runs, traceEvents, venues
 import type { RunStage, TraceLevel } from "@/src/db/schema";
 import type { PoolRef } from "@/src/agent/designer/candidates";
 import type { Breakdown, ComponentName } from "@/src/scoring/clubScore";
-import { COMPONENTS } from "@/src/scoring/clubScore";
+import { COMPONENTS, SCOPE_LABEL, WEIGHTS } from "@/src/scoring/clubScore";
 
 // What the pages read. All plain data, no raw errors: the run page polls getRunState and the picks page reads getCandidates.
 
@@ -115,7 +115,7 @@ export type EvidenceCall = {
   cached: boolean;
 };
 
-export type ComponentView = { name: ComponentName; weight: number; value: number; reason: string; flagged: boolean; calls: EvidenceCall[] };
+export type ComponentView = { name: ComponentName; scope: string; weight: number; value: number; reason: string; flagged: boolean; calls: EvidenceCall[] };
 
 export type CandidateView = {
   id: string;
@@ -143,7 +143,10 @@ export type CandidatesView = {
 
 type StoredBreakdown = Partial<Record<ComponentName, Breakdown[ComponentName]>> & { heat?: HeatLayer };
 
-const WEIGHT_OF: Record<ComponentName, number> = { localAffinity: 0.3, coherence: 0.2, venueFit: 0.15, momentum: 0.1, sweetSpot: 0.15, formatFit: 0.1 };
+const WEIGHT_OF = WEIGHTS;
+
+// Runs saved before the score was reworked used the old name for the city part.
+type LegacyBreakdown = StoredBreakdown & { localAffinity?: Breakdown[ComponentName] };
 
 // Joins each component's call ids to the rows of the call log, so "How we know" shows real calls.
 export function shapeCandidates(
@@ -153,7 +156,8 @@ export function shapeCandidates(
   let heat: HeatLayer | null = null;
   const ranked = [...rows].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999) || (b.score ?? 0) - (a.score ?? 0));
   const shaped = ranked.map((row): CandidateView => {
-    const breakdown = (row.breakdown ?? {}) as StoredBreakdown;
+    const stored = (row.breakdown ?? {}) as LegacyBreakdown;
+    const breakdown: StoredBreakdown = { ...stored, cityCulture: stored.cityCulture ?? stored.localAffinity };
     if (breakdown.heat && !heat) heat = breakdown.heat;
     const components = COMPONENTS.flatMap((name): ComponentView[] => {
       const part = breakdown[name];
@@ -161,6 +165,7 @@ export function shapeCandidates(
       return [
         {
           name,
+          scope: SCOPE_LABEL[name],
           weight: WEIGHT_OF[name],
           value: part.value,
           reason: part.reason,
@@ -184,7 +189,8 @@ export async function getCandidates(db: Db, runId: string, now: number = Date.no
   const rows = await db.select().from(candidates).where(eq(candidates.runId, runId));
   const wanted = new Set<string>();
   for (const row of rows) {
-    const breakdown = (row.breakdown ?? {}) as StoredBreakdown;
+    const stored = (row.breakdown ?? {}) as LegacyBreakdown;
+    const breakdown: StoredBreakdown = { ...stored, cityCulture: stored.cityCulture ?? stored.localAffinity };
     for (const name of COMPONENTS) for (const id of breakdown[name]?.callIds ?? []) wanted.add(id);
     if (breakdown.heat?.callId) wanted.add(breakdown.heat.callId);
   }

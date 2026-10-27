@@ -6,21 +6,21 @@ import {
   AREA_SCAN_SIZE,
   coherenceComponent,
   formatFitComponent,
-  localAffinityComponent,
+  cityCultureComponent,
   momentumComponent,
   percentileRank,
   rankScored,
   scoreClub,
   sweetSpotComponent,
-  venueFitComponent,
   type Breakdown,
   type CompanionEvidence,
   type Component,
 } from "@/src/scoring/clubScore";
+import { isSameKind, nearbyPlacesComponent, venueCrowdComponent, type TagUnit } from "@/src/scoring/localSignals";
 import { traceEmptyResult } from "../qlooTrace";
 import type { VenueInput } from "../locator";
 import type { StageFn } from "../runStage";
-import { DOMAIN_LABEL, planFor, TRENDING_DOMAINS, type ScoutDomain } from "../scout/plan";
+import { DOMAIN_LABEL, TRENDING_DOMAINS, type ScoutDomain } from "../scout/plan";
 import type { PoolSignal } from "../scout/pool";
 import { FORMAT_LABEL, type ClubFormat, type PoolRef } from "../designer/candidates";
 
@@ -52,7 +52,7 @@ export type ScoredRow = {
   verified: boolean;
 };
 
-// What is stored in candidates.breakdown: the six components, and for the best club the heat layer.
+// What is stored in candidates.breakdown: the seven components, and for the best club the heat layer.
 export type ScoredBreakdown = Breakdown & {
   heat?: { source: "qloo_heatmap" | "nearby_places"; points: Array<{ lat: number; lon: number; affinity?: number }>; callId: string | null };
 };
@@ -71,11 +71,17 @@ type Context = {
   ranges: Map<string, { min: number; max: number }>;
   popularities: number[];
   venueType: string;
-  planOrder: readonly string[];
+  venueName: string;
+  // What the places within 1 km and the venue's own crowd carry, as tag names (see src/scoring/localSignals.ts).
+  places: TagUnit[];
+  crowd: TagUnit[];
+  standIn: TagUnit[];
+  placeCallIds: string[];
+  crowdCallIds: string[];
 };
 
 // Min and max affinity of what the area loves in each domain, and of each tag type, for rescaling.
-function buildContext(pool: PoolSignal[], venueType: string): Context {
+function buildContext(pool: PoolSignal[], venueType: string, venueName: string): Context {
   const ranges = new Map<string, { min: number; max: number }>();
   const widen = (key: string, affinity: number | undefined) => {
     if (affinity === undefined) return;
@@ -86,12 +92,23 @@ function buildContext(pool: PoolSignal[], venueType: string): Context {
     if (s.kind === "entity" && s.appearances.area) widen(s.domain ?? "", s.appearances.area.affinity);
     if (s.kind === "tag") widen(`tag:${s.tagType ?? ""}`, s.affinity);
   }
+  const tagNames = (s: PoolSignal) => s.tags.map((t) => t.name);
+  const places = pool.filter((s) => s.kind === "entity" && s.domain === "place" && s.appearances.places).map((s): TagUnit => ({ label: s.name, tags: tagNames(s) }));
+  const similar = pool.filter((s) => s.kind === "entity" && s.domain === "place" && s.appearances.venue);
+  const ownTags = pool.filter((s) => s.kind === "tag" && s.appearances.venue).map((s) => s.name);
+  const crowd: TagUnit[] = [...(ownTags.length > 0 ? [{ label: venueName, tags: ownTags }] : []), ...similar.map((s): TagUnit => ({ label: s.name, tags: tagNames(s) }))];
+  const idsOf = (source: "places" | "venue") => [...new Set(pool.map((s) => s.appearances[source]?.callId).filter((id): id is string => !!id))];
   return {
     byId: new Map(pool.map((s) => [s.refId, s])),
+    venueName,
+    places,
+    crowd,
+    standIn: places.filter((p) => isSameKind(venueType, p.tags)),
+    placeCallIds: idsOf("places"),
+    crowdCallIds: idsOf("venue"),
     ranges,
     popularities: pool.filter((s) => s.kind === "entity" && s.domain !== "place" && s.popularity !== undefined).map((s) => s.popularity as number),
     venueType,
-    planOrder: planFor(venueType),
   };
 }
 
@@ -106,7 +123,7 @@ function staticComponents(candidate: StoredCandidate, ctx: Context): Omit<Breakd
     // A tag's place in the tag list stands in for the area scan.
     const sameType = [...ctx.byId.values()].filter((s) => s.kind === "tag" && s.tagType === anchor?.tagType).sort((a, b) => (b.affinity ?? 0) - (a.affinity ?? 0));
     const rank = anchor ? sameType.findIndex((s) => s.refId === anchor.refId) : -1;
-    local = localAffinityComponent({
+    local = cityCultureComponent({
       anchorName: candidate.anchor.name,
       domainLabel,
       rank: rank >= 0 ? Math.min(rank, AREA_SCAN_SIZE - 1) : null,
@@ -116,7 +133,7 @@ function staticComponents(candidate: StoredCandidate, ctx: Context): Omit<Breakd
     });
   } else {
     const area = anchor?.appearances.area;
-    local = localAffinityComponent({
+    local = cityCultureComponent({
       anchorName: candidate.anchor.name,
       domainLabel,
       rank: area?.rank ?? null,
@@ -126,12 +143,20 @@ function staticComponents(candidate: StoredCandidate, ctx: Context): Omit<Breakd
     });
   }
 
+  // The words that describe the club's taste: the anchor's tags and its companions'.
+  const clubTags = [
+    ...(isTag ? [candidate.anchor.name] : (anchor?.tags ?? []).map((t) => t.name)),
+    ...candidate.companions.flatMap((c) => (c.kind === "tag" ? [c.name] : (ctx.byId.get(c.id)?.tags ?? []).map((t) => t.name))),
+  ];
+  const placeCompanion = candidate.companions.find((c) => c.domain === "place")?.name ?? null;
+
   const trend = anchor?.appearances.trend;
   const supportsTrends = isTag || TRENDING_DOMAINS.includes(candidate.anchor.domain as ScoutDomain);
   const popularity = anchor?.popularity ?? null;
   return {
-    localAffinity: local,
-    venueFit: venueFitComponent({ venueType: ctx.venueType, domain: candidate.anchor.domain, domainLabel, planOrder: ctx.planOrder }),
+    cityCulture: local,
+    venueCrowd: venueCrowdComponent({ venueName: ctx.venueName, clubTags, crowd: ctx.crowd, standIn: ctx.standIn, callIds: ctx.crowdCallIds }),
+    nearbyPlaces: nearbyPlacesComponent({ clubName: candidate.title, clubTags, places: ctx.places, placeCompanion, callIds: ctx.placeCallIds }),
     momentum: momentumComponent({ anchorName: candidate.anchor.name, trendRank: trend?.rank ?? null, supported: supportsTrends, callId: trend?.callId ?? null }),
     sweetSpot: sweetSpotComponent({
       anchorName: candidate.anchor.name,
@@ -149,25 +174,27 @@ export function createVerifyStage(deps: VerifierDeps): StageFn {
     const [pool, candidates] = await Promise.all([deps.loadPool(run.id), deps.loadCandidates(run.id)]);
     if (candidates.length === 0) throw new UserFacingError("There are no club ideas to check yet.");
 
-    const ctx = buildContext(pool, venue.venueType);
+    const ctx = buildContext(pool, venue.venueType, venue.name);
     const parts = new Map(candidates.map((c) => [c.id, staticComponents(c, ctx)]));
 
     // Pre-rank by how strongly the area loves the anchor, and spend the Qloo calls on the best few.
-    const preRanked = rankScored(candidates.map((c) => ({ c, score: parts.get(c.id)!.localAffinity.value, title: c.title })));
+    const preRanked = rankScored(candidates.map((c) => ({ c, score: parts.get(c.id)!.cityCulture.value, title: c.title })));
     const toVerify = new Set(preRanked.slice(0, deps.maxVerified ?? MAX_VERIFIED).map((x) => x.c.id));
     await trace.info(
       `Checking ${toVerify.size} of the ${candidates.length} clubs with Qloo: do the companions really go with the anchor? The rest are scored from what the Scout already found.`,
     );
 
+    // The checks are independent, so they run together. The client still spaces the requests to Qloo.
     const coherence = new Map<string, Component>();
-    for (const candidate of candidates) {
-      const verified = toVerify.has(candidate.id);
-      const result = verified ? await checkCoherence(candidate, ctx, deps, trace, run.id) : null;
-      coherence.set(
-        candidate.id,
-        result ?? coherenceComponent({ anchorName: candidate.anchor.name, companions: evidenceWithoutQloo(candidate, ctx), callIds: [], verified: false }),
-      );
-    }
+    await Promise.all(
+      candidates.map(async (candidate) => {
+        const result = toVerify.has(candidate.id) ? await checkCoherence(candidate, ctx, deps, trace, run.id) : null;
+        coherence.set(
+          candidate.id,
+          result ?? coherenceComponent({ anchorName: candidate.anchor.name, companions: evidenceWithoutQloo(candidate, ctx), callIds: [], verified: false }),
+        );
+      }),
+    );
 
     const scored = candidates.map((candidate) => {
       const breakdown: ScoredBreakdown = { ...parts.get(candidate.id)!, coherence: coherence.get(candidate.id)! };

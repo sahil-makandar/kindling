@@ -1,3 +1,5 @@
+import { APP_NAME } from "@/src/config/brand";
+
 // The venues and clubs this browser has opened, kept in localStorage. There is no login: a venue is yours if this browser made it.
 
 export type RememberedVenue = {
@@ -11,7 +13,7 @@ export type RememberedVenue = {
   at: number;
 };
 
-const KEY = "kindling.venues";
+const KEY = `${APP_NAME.toLowerCase()}.venues`;
 const MAX = 12;
 
 export function readRemembered(): RememberedVenue[] {

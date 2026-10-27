@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getWeeklyView } from "@/src/coach/view";
 import { getDb } from "@/src/db/client";
 import { requireUuid } from "@/src/runs/http";
-import { getJourney } from "@/src/journey/journey";
+import { getVenueProgress } from "@/src/progress/progress";
 import { VenueShell } from "@/src/ui/VenueShell";
 import { WeeklyReport } from "@/src/ui/WeeklyView";
 
@@ -20,10 +20,10 @@ export default async function WeeklyPage({ params }: { params: Promise<{ id: str
   }
   const data = await getWeeklyView(getDb(), id);
   if (!data) notFound();
-  const journey = await getJourney(getDb(), { clubId: id });
-  if (!journey) notFound();
+  const progress = await getVenueProgress(getDb(), { clubId: id });
+  if (!progress) notFound();
   return (
-    <VenueShell journey={journey} current="grow">
+    <VenueShell progress={progress} current="grow">
       <WeeklyReport data={data} />
     </VenueShell>
   );

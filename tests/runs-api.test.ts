@@ -167,13 +167,13 @@ describe("shapeCandidates", () => {
   it("orders by rank, puts unranked last, and joins each component to its real Qloo calls", () => {
     const withCalls = {
       coherence: { value: 0.8, reason: "They overlap.", callIds: ["c1", "missing"] },
-      localAffinity: { value: 0.6, reason: "Popular here.", callIds: [], flagged: true },
+      cityCulture: { value: 0.6, reason: "Popular here.", callIds: [], flagged: true },
       heat: { source: "qloo_heatmap", points: [{ lat: 1, lon: 2 }], callId: "c1" },
     };
     const { candidates: shaped, heat } = shapeCandidates([row("b", null, null), row("a", 1, withCalls)], new Map([["c1", call]]));
     expect(shaped.map((c) => c.id)).toEqual(["a", "b"]);
-    expect(shaped[0].components.map((c) => c.name)).toEqual(["localAffinity", "coherence"]);
-    expect(shaped[0].components[1]).toMatchObject({ weight: 0.2, calls: [call] });
+    expect(shaped[0].components.map((c) => c.name)).toEqual(["cityCulture", "coherence"]);
+    expect(shaped[0].components[1]).toMatchObject({ weight: 0.15, calls: [call] });
     expect(shaped[0].components[0].flagged).toBe(true);
     expect(shaped[1].components).toEqual([]);
     expect(heat?.points).toHaveLength(1);

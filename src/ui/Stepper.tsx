@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
-import type { JourneyLink } from "@/src/journey/journey";
+import type { ProgressLink } from "@/src/progress/progress";
 import { cx } from "./cx";
 
-// The five steps of a venue's journey. Finished steps are links. On a phone it is one compact row, on a desktop a vertical list in the left rail.
-export function Stepper({ steps, variant }: { steps: JourneyLink[]; variant: "row" | "list" }) {
+// The five steps of a venue's progress. Finished steps are links. On a phone it is one compact row, on a desktop a vertical list in the left rail.
+export function Stepper({ steps, variant }: { steps: ProgressLink[]; variant: "row" | "list" }) {
   return (
     <nav aria-label="Your venue's steps" className={variant === "row" ? "lg:hidden" : "hidden lg:block"}>
       <ol className={variant === "row" ? "grid grid-cols-5 gap-1" : "flex flex-col gap-1"}>

@@ -125,7 +125,7 @@ describe("Verify stage", () => {
     expect(checked.breakdown.coherence.callIds.length).toBeGreaterThan(0);
     const logged = new Set(store.calls.map((_, i) => `call-${i + 1}`));
     for (const id of checked.breakdown.coherence.callIds) expect(logged.has(id)).toBe(true);
-    expect(checked.breakdown.localAffinity.callIds.length).toBe(1);
+    expect(checked.breakdown.cityCulture.callIds.length).toBe(1);
   });
 
   it("counts a companion Qloo did not rank as low, and still verifies the club", async () => {
@@ -247,11 +247,15 @@ describe("Verify stage", () => {
     await expect(stage({ run, trace })).rejects.toThrow("no club ideas to check");
   });
 
-  it("uses the venue type to score format fit and venue fit", async () => {
+  it("uses the venue type to score format fit and the local parts", async () => {
     const { stage, run, trace, saved } = await setup();
     await stage({ run, trace });
     const discussion = saved[0].find((r) => r.breakdown.formatFit.reason.startsWith("A discussion club suits a cafe at 90"));
     expect(discussion).toBeDefined();
-    expect(saved[0].some((r) => r.breakdown.venueFit.reason.includes("what a cafe leans on most"))).toBe(true);
+    // Every club gets the two local parts, each with a reason.
+    for (const row of saved[0]) {
+      expect(row.breakdown.venueCrowd.reason.length).toBeGreaterThan(10);
+      expect(row.breakdown.nearbyPlaces.reason.length).toBeGreaterThan(10);
+    }
   });
 });

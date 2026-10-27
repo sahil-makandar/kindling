@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ClubFormat, PoolRef } from "../designer/candidates";
 import type { PoolSignal } from "../scout/pool";
+import { friendlyName, isColdName } from "../naming";
 
 // The Producer's pure logic (PRODUCT_SPEC section 9): the kit schema, how the model's answer is cleaned and checked,
 // the playlist (chosen by code from the pool, never by the model), the licence note, and a plain fallback kit so a
@@ -182,7 +183,7 @@ export function resolveKit(
   if (hostWords.length > 180) notes.push("Trimmed the host script to 180 words.");
 
   const kit: ClubKit = {
-    clubName: clip(raw.clubName, 40),
+    clubName: clip(isColdName(raw.clubName) ? (isColdName(ctx.title) ? friendlyName({ anchor: ctx.anchor.name, companion: ctx.companions[0]?.name ?? null, format: ctx.format, night: ctx.slowNight }) : ctx.title) : raw.clubName, 40),
     hook: clip(raw.hook, 110),
     format: ctx.format,
     night: nightLabel(ctx.slowNight),

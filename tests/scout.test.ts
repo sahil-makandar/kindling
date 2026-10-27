@@ -397,7 +397,7 @@ describe("the other actions", () => {
     const result = await scout.scanNearbyPlaces("food scene");
     expect(result).toMatchObject({ ok: true, results: 6 });
     expect(scout.pool.entities("place")).toHaveLength(6);
-    expect(messages().at(-1)).toMatch(/^Looking at the places nearby\.\.\. 6 places: Tonkotsu Alley/);
+    expect(messages().at(-1)).toMatch(/^Looking at the places within 1 km of your door... 6 places: Tonkotsu Alley/);
   });
 });
 

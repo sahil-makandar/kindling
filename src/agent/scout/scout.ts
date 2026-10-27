@@ -12,6 +12,8 @@ import { buildLadder, DOMAIN_LABEL, planFor, TRENDING_DOMAINS, type ScoutDomain 
 // the steps or the deterministic plan does.
 
 export const MAX_QLOO_CALLS = 16;
+// The nearby-places scan reads at least this far, in metres.
+export const PLACES_RADIUS_M = 1000;
 // The last few calls are kept for re-scanning after the radius is widened.
 export const RESERVE_FOR_RESCANS = 3;
 
@@ -408,7 +410,9 @@ export class ScoutRun {
 
     return this.guarded("nearby places", () =>
       this.spendOn("places", undefined, 1, async () => {
-        const spec = this.ladder[this.step].spec;
+        // Places are the truly local signal, so they are always read within 1 km, even when the media scans stayed closer.
+        const current = this.ladder[this.step].spec;
+        const spec = "radiusM" in current && current.radiusM < PLACES_RADIUS_M ? { ...current, radiusM: PLACES_RADIUS_M } : current;
         const result = await this.deps.api.insightsEntities(
           { domain: "place", signalArea: spec, filterArea: spec, take: 20 },
           { purpose: "scout.places", runId: this.deps.runId },
@@ -417,7 +421,7 @@ export class ScoutRun {
         this.pool.addEntities(result.items, { domain: "place", source: "places", callId: result.callId });
         const names = result.items.slice(0, 4).map((p) => p.name).join(", ");
         await this.deps.trace.info(
-          `Looking at the places nearby... ${plural(result.items.length, "place")}${names ? `: ${names}` : ""}.`,
+          `Looking at the places within 1 km of your door... ${plural(result.items.length, "place")}${names ? `: ${names}` : ""}.`,
           { callId: result.callId },
         );
         return { ok: true, results: result.items.length, places: compactEntities(result.items, 8), ...this.snapshot() };
