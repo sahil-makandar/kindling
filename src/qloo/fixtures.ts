@@ -1,11 +1,15 @@
 import catalogueJson from "@/fixtures/sample/catalogue.json";
 import locationsJson from "@/fixtures/sample/locations.json";
 
-// Offline stand-in for the Qloo API (QLOO_MODE=fixtures). It builds responses in the shape described in
-// docs/QLOO_API.md section 5 from two hand-written files in fixtures/sample/. The data is sample data,
-// not Qloo output, and the UI shows a banner whenever it is in use.
+// Offline stand-in for the Qloo API (QLOO_MODE=fixtures). It builds responses in the shape the live API uses
+// (measured in the live spike, docs/QLOO_API.md section 8) from two hand-written files in fixtures/sample/.
+// The data is sample data, not Qloo output, and the UI shows a banner whenever it is in use.
+// It also copies the real API's quirks: a place id is not a valid taste signal for films or music (400), and
+// video_game is not supported.
 
-export const ENTITY_DOMAINS = ["artist", "movie", "tv_show", "book", "podcast", "video_game"] as const;
+import { QlooError } from "./errors";
+
+export const ENTITY_DOMAINS = ["artist", "movie", "tv_show", "book", "podcast"] as const;
 export type MediaDomain = (typeof ENTITY_DOMAINS)[number];
 
 type Params = Record<string, string>;
@@ -81,9 +85,38 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const splitList = (value: string | undefined) => (value ? value.split(",").filter(Boolean) : []);
 
+// Catalogue tag types, written as the real API names them (urn:tag:genre:media, urn:tag:category:place...).
+function tagType(type: string): string {
+  if (type === "keyword") return "urn:tag:keyword:qloo";
+  if (type === "place:category") return "urn:tag:category:place";
+  if (type === "place:cuisine") return "urn:tag:genre:place";
+  return `urn:tag:${type}`;
+}
+
+// Tags inside insights entities: { id, name, type }.
 function tagRef(slug: string) {
   const [name, type] = catalogue.tags[slug] ?? [slug, "keyword"];
-  return { id: `fx_tag_${slug}`, name, type: `urn:tag:${type}` };
+  return { id: `fx_tag_${slug}`, name, type: tagType(type) };
+}
+
+// Tags inside search and entity lookups: { tag_id, name, type, value }.
+function lookupTag(slug: string) {
+  const ref = tagRef(slug);
+  return { name: ref.name, tag_id: ref.id, type: ref.type, value: ref.id };
+}
+
+// An item in a standalone tag list: { tag_id, name, types, subtype, tag_value, popularity, query }.
+function tagListItem(slug: string, affinity: number) {
+  const ref = tagRef(slug);
+  return {
+    tag_id: ref.id,
+    name: ref.name,
+    types: ["urn:entity:place"],
+    subtype: ref.type,
+    tag_value: ref.id,
+    popularity: round2(0.5 + 0.5 * hash01(slug)),
+    query: { affinity },
+  };
 }
 
 function placeGeo(item: Item) {
@@ -95,11 +128,15 @@ function placeGeo(item: Item) {
   };
 }
 
-function entityBody(item: Item, affinity?: number) {
+// shape "insights" is what /v2/insights returns; "lookup" is what /search and /entities return.
+function entityBody(item: Item, affinity?: number, shape: "insights" | "lookup" = "insights") {
   let properties = item.properties;
+  let place = {};
   if (item.domain === "place") {
     const geo = placeGeo(item);
-    properties = { ...properties, address: geo.address, geocode: { latitude: geo.lat, longitude: geo.lon } };
+    const home = locations[placeHome.get(item.id) ?? "soho"];
+    properties = { ...properties, address: geo.address, neighborhood: home.label.split(",")[0] };
+    place = { location: { lat: geo.lat, lon: geo.lon }, disambiguation: geo.address };
   }
   return {
     entity_id: item.id,
@@ -110,7 +147,8 @@ function entityBody(item: Item, affinity?: number) {
     popularity: item.popularity,
     ...(affinity === undefined ? {} : { query: { affinity: round2(affinity) } }),
     properties,
-    tags: item.tags.map(tagRef),
+    ...place,
+    tags: item.tags.map((slug) => (shape === "lookup" ? lookupTag(slug) : tagRef(slug))),
   };
 }
 
@@ -183,21 +221,28 @@ function areaEntities(params: Params, domain: string) {
         0.4 * b.affinity + 0.6 * hash01(`${b.item?.id}trend`) - (0.4 * a.affinity + 0.6 * hash01(`${a.item?.id}trend`)),
     );
   }
+  const popularityMax = params["filter.popularity.max"] === undefined ? undefined : Number(params["filter.popularity.max"]);
+  if (popularityMax !== undefined && domain !== "place") {
+    // The real API's cap surfaces the more distinctive picks. The sample lists are short, so the capped items come
+    // first and the rest follow, instead of the list shrinking.
+    const capped = rows.filter((r) => (r.item?.popularity ?? 1) <= popularityMax);
+    rows = [...capped, ...rows.filter((r) => !capped.includes(r))];
+  }
   return rows
     .filter((r): r is { item: Item; affinity: number } => r.item !== undefined)
     .slice(0, takeFor(params, loc))
     .map(({ item, affinity }) => entityBody(item, affinity));
 }
 
-function venueCrowd(seedIds: string[], domain: string, take: number) {
+// Places like the seed place, near it. Qloo accepts a place as the taste signal only for other places.
+function similarVenues(seedIds: string[], take: number) {
   const home = placeHome.get(seedIds[0]) ?? "soho";
-  const ranking = locations[home].entities[domain as MediaDomain] ?? [];
-  return ranking
+  return locations[home].places
+    .filter(([slug]) => `fx_place_${slug}` !== seedIds[0])
     .slice(0, take)
     .map(([slug, affinity]) => {
-      const item = items.get(`fx_${slug}`);
-      // The venue's own crowd leans a little differently from the whole area.
-      return item ? entityBody(item, clamp01(affinity * (0.85 + 0.15 * hash01(`${seedIds[0]}${slug}`)))) : undefined;
+      const item = items.get(`fx_place_${slug}`);
+      return item ? entityBody(item, clamp01(affinity * (0.9 + 0.1 * hash01(`${seedIds[0]}${slug}`)))) : undefined;
     })
     .filter((x) => x !== undefined);
 }
@@ -229,7 +274,7 @@ function tagsForSeeds(seedIds: string[], take: number) {
   const counts = new Map<string, number>();
   for (const it of known) for (const t of it.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
   if (counts.size === 0) {
-    return ["indie", "comedy", "food", "drama", "cozy"].map((slug) => ({ ...tagRef(slug), query: { affinity: 0.5 } }));
+    return ["indie", "comedy", "food", "drama", "cozy"].map((slug) => tagListItem(slug, 0.5));
   }
   return [...counts.entries()]
     .map(([slug, count]) => ({
@@ -238,7 +283,7 @@ function tagsForSeeds(seedIds: string[], take: number) {
     }))
     .sort((a, b) => b.affinity - a.affinity || a.slug.localeCompare(b.slug))
     .slice(0, take)
-    .map(({ slug, affinity }) => ({ ...tagRef(slug), query: { affinity: round2(affinity) } }));
+    .map(({ slug, affinity }) => tagListItem(slug, round2(affinity)));
 }
 
 function heatmap(params: Params) {
@@ -277,7 +322,7 @@ function search(params: Params) {
     for (const item of items.values()) {
       if (item.domain !== "place") continue;
       const score = words(item.name).filter((w) => queryWords.has(w)).length;
-      if (score > 0) out.push({ score, body: entityBody(item) });
+      if (score > 0) out.push({ score, body: entityBody(item, undefined, "lookup") });
     }
   }
   const needle = words(query).join(" ");
@@ -285,7 +330,7 @@ function search(params: Params) {
   if (needle) {
     for (const item of items.values()) {
       if (!mediaDomains.includes(item.domain)) continue;
-      if (words(item.name).join(" ").includes(needle)) out.push({ score: 10, body: entityBody(item) });
+      if (words(item.name).join(" ").includes(needle)) out.push({ score: 10, body: entityBody(item, undefined, "lookup") });
     }
   }
   out.sort((a, b) => b.score - a.score);
@@ -298,13 +343,16 @@ export function fixtureResponse(path: string, params: Params): unknown {
 
   if (path === "/entities") {
     const found = splitList(params.entity_ids).map((id) => items.get(id)).filter((x): x is Item => x !== undefined);
-    return { results: found.map((it) => entityBody(it)) };
+    return { results: found.map((it) => entityBody(it, undefined, "lookup")) };
   }
 
   if (path === "/v2/tags") {
     const q = (params["filter.query"] ?? "").toLowerCase();
     const matches = Object.keys(catalogue.tags).filter((slug) => catalogue.tags[slug][0].toLowerCase().includes(q));
-    return insights("tags", matches.slice(0, Number(params.take ?? 10)).map(tagRef));
+    return insights(
+      "tags",
+      matches.slice(0, Number(params.take ?? 10)).map((slug) => ({ ...tagRef(slug), popularity: round2(0.5 + 0.5 * hash01(slug)), parents: [] })),
+    );
   }
 
   if (path === "/v2/insights") {
@@ -319,22 +367,25 @@ export function fixtureResponse(path: string, params: Params): unknown {
       const { loc } = locationFor(params);
       return insights(
         "tags",
-        loc.tags.slice(0, takeFor(params, loc, 5)).map(([slug, affinity]) => ({ ...tagRef(slug), query: { affinity } })),
+        loc.tags.slice(0, takeFor(params, loc, 5)).map(([slug, affinity]) => tagListItem(slug, affinity)),
       );
     }
 
     if (type.startsWith("urn:entity:")) {
       const domain = type.replace("urn:entity:", "");
+      if (domain === "video_game") {
+        throw new QlooError("Qloo answered with status 400.", 400);
+      }
       if (params["filter.results.entities"]) return insights("entities", scoreList(params, domain));
+      if (seeds.some((id) => placeHome.has(id))) {
+        // Like the real API: a place can seed other places, but not films, music or books.
+        if (domain !== "place") throw new QlooError("Qloo answered with status 400.", 400);
+        return insights("entities", similarVenues(seeds, take));
+      }
       const hasArea =
         params["signal.location"] || params["filter.location"] || params["signal.location.query"] || params["filter.location.query"];
       if (hasArea) return insights("entities", areaEntities(params, domain));
-      if (seeds.length > 0) {
-        const crowd = seeds.some((id) => placeHome.has(id))
-          ? venueCrowd(seeds, domain, take)
-          : relatedEntities(seeds, domain, take);
-        return insights("entities", crowd);
-      }
+      if (seeds.length > 0) return insights("entities", relatedEntities(seeds, domain, take));
     }
   }
 

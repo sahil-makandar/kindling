@@ -51,3 +51,6 @@ Thumbs.db
 # Qloo response data must never be stored in the public repo (official hackathon terms).
 # Recorded responses stay on your machine only.
 fixtures/live/
+
+# local scratch scripts (live checks with real queries)
+scripts/_*.ts

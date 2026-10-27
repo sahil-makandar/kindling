@@ -3,8 +3,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getEnv } from "@/src/config/env";
 import { getDb } from "@/src/db/client";
-import { UserFacingError } from "@/src/lib/errors";
 import { createPacer } from "@/src/lib/pacer";
+import { QlooError } from "./errors";
 import { fixtureResponse } from "./fixtures";
 import { countResults } from "./schemas";
 import { createDbStore, type QlooStore } from "./store";
@@ -18,7 +18,7 @@ export type QlooPurpose =
   | "locate.venue"
   | "scout.area_entities"
   | "scout.area_tags"
-  | "scout.venue_crowd"
+  | "scout.similar_venues"
   | "scout.trending"
   | "scout.places"
   | "verify.coherence"
@@ -47,15 +47,7 @@ export type QlooResponse = {
 
 export type QlooGet = (path: string, params: QlooParams, ctx: QlooContext) => Promise<QlooResponse>;
 
-export class QlooError extends UserFacingError {
-  constructor(
-    message: string,
-    public readonly status: number,
-  ) {
-    super(message);
-    this.name = "QlooError";
-  }
-}
+export { QlooError };
 
 export type QlooClientDeps = {
   mode: QlooMode;

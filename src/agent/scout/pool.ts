@@ -156,10 +156,13 @@ export function compactTags(tags: QlooTag[], limit = 8) {
   return tags.slice(0, limit).map((t) => ({ name: t.name, affinity: t.affinity === undefined ? null : round2(t.affinity) }));
 }
 
-// "Piranesi (0.91), Circe (0.88)" for the trace.
+// "Piranesi (0.91), Circe (0.88)" for the trace. Qloo's affinity for an area's top results is almost always 0.99 or
+// more, which tells the reader nothing, so the numbers are left out when the shown items score the same.
 export function strongestLine(items: Array<{ name: string; affinity?: number }>, limit = 3): string {
-  return items
-    .slice(0, limit)
-    .map((i) => (i.affinity === undefined ? i.name : `${i.name} (${round2(i.affinity)})`))
+  const shown = items.slice(0, limit);
+  const scores = shown.map((i) => i.affinity).filter((a): a is number => a !== undefined);
+  const informative = scores.length > 1 && Math.max(...scores) - Math.min(...scores) >= 0.02;
+  return shown
+    .map((i) => (i.affinity === undefined || !informative ? i.name : `${i.name} (${round2(i.affinity)})`))
     .join(", ");
 }

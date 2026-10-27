@@ -23,7 +23,8 @@ const entity = (id: string, tags: string[], affinity?: number, geo?: [number, nu
   tags: tags.map(tag),
   affinity,
   popularity: 0.5,
-  properties: geo ? { geocode: { latitude: geo[0], longitude: geo[1] } } : {},
+  properties: {},
+  ...(geo ? { location: { lat: geo[0], lon: geo[1] } } : {}),
 });
 
 const area = { lon: -73.95, lat: 40.7, radiusM: 1500 };
@@ -54,6 +55,32 @@ describe("tagsFromEntities", () => {
     const tags = tagsFromEntities([entity("a", ["jp", "anime"]), entity("b", ["jp"]), entity("c", ["jp", "food"])], "count");
     expect(tags[0]).toMatchObject({ id: "jp", affinity: 1 });
     expect(tags.find((t) => t.id === "anime")?.affinity).toBeCloseTo(0.33, 2);
+  });
+
+  it("treats tags with the same name as one tag, even under different ids", () => {
+    const comedyFilm = { id: "film_comedy", name: "Comedy", type: "urn:tag:genre:media" };
+    const comedyShow = { id: "show_comedy", name: "comedy", type: "urn:tag:genre:media" };
+    const a = { ...entity("a", [], 0.9), tags: [comedyFilm] };
+    const b = { ...entity("b", [], 0.7), tags: [comedyShow] };
+    const tags = tagsFromEntities([a, b], "affinity");
+    expect(tags).toHaveLength(1);
+    expect(tags[0]).toMatchObject({ id: "film_comedy", name: "Comedy", affinity: 1 });
+  });
+
+  it("ranks genres and themes above keyword noise, but reports the plain share in count mode", () => {
+    const withTypes = (id: string, tags: Array<[string, string]>): QlooEntity => ({
+      ...entity(id, []),
+      tags: tags.map(([name, type]) => ({ id: `${type}:${name}`, name, type })),
+    });
+    const tags = tagsFromEntities(
+      [
+        withTypes("a", [["Funeral procession", "urn:tag:keyword:media"], ["Drama", "urn:tag:genre:qloo"]]),
+        withTypes("b", [["Funeral procession", "urn:tag:keyword:media"], ["Drama", "urn:tag:genre:qloo"]]),
+      ],
+      "count",
+    );
+    expect(tags.map((t) => t.name)).toEqual(["Drama", "Funeral procession"]);
+    expect(tags.map((t) => t.affinity)).toEqual([1, 1]);
   });
 
   it("counts a tag once per entity even if it is listed twice", () => {

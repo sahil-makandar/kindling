@@ -1,4 +1,4 @@
-import { placeCoordinates, type QlooEntity } from "@/src/qloo/schemas";
+import { placeCoordinates, type QlooEntity, type QlooTag } from "@/src/qloo/schemas";
 import { traceEmptyResult } from "./qlooTrace";
 import type { StageFn } from "./runStage";
 
@@ -17,9 +17,14 @@ export type VenueInput = {
   // Set once the Locator has found the venue in Qloo.
   qlooEntityId?: string | null;
   qlooEntityName?: string | null;
+  // The venue's own tags on Qloo (ambience, interests, category...), saved with the match.
+  qlooTags?: QlooTag[] | null;
 };
 
-export type VenueMatch = { id: string; name: string; category: string | null };
+export type VenueMatch = { id: string; name: string; category: string | null; tags: QlooTag[] };
+
+// How many of the venue's own tags to keep.
+const MAX_VENUE_TAGS = 25;
 
 export type Skipped = { name: string; reason: string };
 
@@ -32,7 +37,7 @@ const MAX_SKIPPED_SHOWN = 3;
 
 // Words in a Qloo category that make a place a plausible Kindling venue.
 const VENUE_CATEGORY =
-  /\b(cafe|café|coffee|tea|bar|pub|tavern|brewery|taproom|bakery|restaurant|ramen|izakaya|taqueria|dumpling|diner|bistro|eatery|wine|cocktail|lounge|bookstore|book ?shop|book store|music venue|concert|venue|club|community|event)\b/i;
+  /\b(cafe|café|coffee|tea|bar|pub|tavern|brewery|taproom|bakery|restaurant|ramen|izakaya|taqueria|dumpling|diner|bistro|eatery|wine|cocktail|lounge|bookstore|book ?shop|book store|music venue|concert|venue|club|community|event|brewpub)\b/i;
 
 const STOP_WORDS = new Set(["the", "and", "of", "a", "an", "at"]);
 
@@ -79,17 +84,33 @@ function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number): num
   return 12742 * Math.asin(Math.sqrt(h));
 }
 
-// The category that made this place plausible, or the first one we know of.
-function categoryOf(hit: QlooEntity): { plausible: boolean; label: string | null } {
-  const names = hit.tags.map((t) => t.name);
-  const plausible = names.find((n) => VENUE_CATEGORY.test(n));
+// The category that best describes what the owner told us the venue is.
+const TYPE_HINT: Record<string, RegExp> = {
+  bookstore: /book/i,
+  cafe: /caf\u00e9|cafe|coffee|espresso|tea/i,
+  bar: /\bbar\b|pub|cocktail|wine|lounge/i,
+  brewery: /brew/i,
+  restaurant: /restaurant|bistro|diner|eatery/i,
+  music_venue: /venue|club|music|concert/i,
+  community_space: /community|event|venue/i,
+};
+
+// The category that made this place plausible, or the first one we know of. Qloo's category tags
+// (urn:tag:category:place, for example "Coffee shop" or "Book store") are the reliable ones, so they come first.
+// A bookstore cafe is tagged "Restaurant" before "Book store", so the venue type picks the label.
+function categoryOf(hit: QlooEntity, venueType?: string): { plausible: boolean; label: string | null } {
+  const categories = hit.tags.filter((t) => /category|genre/.test(t.type ?? "")).map((t) => t.name);
+  const names = categories.length > 0 ? categories : hit.tags.map((t) => t.name);
+  const plausibleNames = names.filter((n) => VENUE_CATEGORY.test(n));
+  const hint = venueType ? TYPE_HINT[venueType] : undefined;
+  const plausible = (hint && plausibleNames.find((n) => hint.test(n))) || plausibleNames[0];
   if (plausible) return { plausible: true, label: plausible.toLowerCase() };
   // No category information at all: give it the benefit of the doubt.
   return { plausible: names.length === 0, label: names[0]?.toLowerCase() ?? null };
 }
 
 export function pickVenueMatch(
-  venue: Pick<VenueInput, "name" | "lat" | "lon">,
+  venue: Pick<VenueInput, "name" | "lat" | "lon"> & { venueType?: string },
   hits: QlooEntity[],
 ): { match: VenueMatch | null; skipped: Skipped[] } {
   const skipped: Skipped[] = [];
@@ -101,7 +122,7 @@ export function pickVenueMatch(
       skipped.push({ name: hit.name, reason: "different name" });
       continue;
     }
-    const category = categoryOf(hit);
+    const category = categoryOf(hit, venue.venueType);
     if (!category.plausible) {
       skipped.push({ name: hit.name, reason: category.label ?? "not a venue" });
       continue;
@@ -118,7 +139,7 @@ export function pickVenueMatch(
   accepted.sort((a, b) => b.similarity - a.similarity || a.km - b.km);
   const best = accepted[0];
   return {
-    match: best ? { id: best.hit.id, name: best.hit.name, category: best.label } : null,
+    match: best ? { id: best.hit.id, name: best.hit.name, category: best.label, tags: best.hit.tags.slice(0, MAX_VENUE_TAGS) } : null,
     skipped,
   };
 }

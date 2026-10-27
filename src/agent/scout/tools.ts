@@ -17,22 +17,23 @@ const domain = z.enum(SCOUT_DOMAINS).describe("artist is music, movie is film.")
 export function buildScoutTools(scout: ScoutRun): ToolSet {
   return {
     scan_area: tool({
-      description: "Read what people in the area love in one domain. Costs 1 Qloo call.",
-      inputSchema: z.object({ domain, reason }),
-      execute: ({ domain, reason }) => scout.serial(() => scout.scanArea(domain, reason)),
+      description:
+        "Read what people in the area love in one domain. band 'local' (default) skips the biggest names so the picks are more distinctive; 'mainstream' includes them. Costs 1 Qloo call.",
+      inputSchema: z.object({ domain, reason, band: z.enum(["local", "mainstream"]).optional() }),
+      execute: ({ domain, reason, band }) => scout.serial(() => scout.scanArea(domain, reason, band ?? "local")),
     }),
     scan_area_tags: tool({
       description: "Read the area's tag vocabulary: the words that describe its taste. Costs at most 1 Qloo call.",
       inputSchema: z.object({ reason }),
       execute: ({ reason }) => scout.serial(() => scout.scanAreaTags(reason)),
     }),
-    scan_venue_crowd: tool({
-      description: "Read what the venue's own crowd loves in one domain. Only works if the venue is in Qloo. Costs 1 Qloo call.",
-      inputSchema: z.object({ domain, reason }),
-      execute: ({ domain, reason }) => scout.serial(() => scout.scanVenueCrowd(domain, reason)),
+    scan_similar_venues: tool({
+      description: "Find venues like this one nearby, to see the scene it sits in. Only works if the venue is in Qloo. Costs 1 Qloo call.",
+      inputSchema: z.object({ reason }),
+      execute: ({ reason }) => scout.serial(() => scout.scanSimilarVenues(reason)),
     }),
     scan_trending: tool({
-      description: "Read what is rising in the area in one domain. Costs 1 Qloo call.",
+      description: "Read what is rising in the area in one domain (not books, which Qloo does not support). Costs 1 Qloo call.",
       inputSchema: z.object({ domain, reason }),
       execute: ({ domain, reason }) => scout.serial(() => scout.scanTrending(domain, reason)),
     }),

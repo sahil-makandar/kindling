@@ -35,6 +35,7 @@ function toScoutVenue(venue: VenueInput): ScoutVenue {
     lon: venue.lon,
     city: firstPart ? firstPart : null,
     qlooEntityId: venue.qlooEntityId ?? null,
+    tags: venue.qlooTags ?? [],
   };
 }
 
@@ -57,6 +58,7 @@ export function createScoutStage(deps: ScoutDeps): StageFn {
       now,
     });
 
+    await scout.adoptVenueTags();
     await trace.info(
       `Scouting around ${row.name}. I have ${maxCalls} Qloo calls to spend and will pick each one from what I find.`,
     );

@@ -1,6 +1,6 @@
 import { QlooError } from "./client";
 import type { AreaSpec, Endpoints, GeoArea } from "./endpoints";
-import { placeCoordinates, type QlooEntity, type QlooHeatPoint, type QlooTag } from "./schemas";
+import { placeCoordinates, tagTypeWeight, type QlooEntity, type QlooHeatPoint, type QlooTag } from "./schemas";
 import type { QlooContext } from "./client";
 
 // Qloo's official filter.type list has no urn:tag or urn:heatmap (docs/QLOO_API.md section 0). We try them,
@@ -31,26 +31,38 @@ export type TagResult = {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // Builds a weighted tag list from the tags the entities themselves carry.
-// "affinity" weights each entity by its affinity (an area's top results); "count" weights each equally,
-// so a tag every entity has scores 1 (a guest's favourites).
+// "affinity" weights each entity by its affinity (an area's top results) and reports each tag relative to the
+// strongest; "count" reports the plain share of entities that carry the tag, so a tag every favourite has
+// scores 1. Either way tags are ranked with their type weight, so genres and themes come before the hundreds of
+// keyword tags that films and shows carry.
 export function tagsFromEntities(entities: QlooEntity[], mode: "affinity" | "count", take = 30): QlooTag[] {
-  const scores = new Map<string, { tag: QlooTag; score: number }>();
+  const scores = new Map<string, { tag: QlooTag; score: number; count: number }>();
   for (const entity of entities) {
     const weight = mode === "affinity" ? (entity.affinity ?? 0.5) : 1;
+    // Tags with the same name are one tag ("Comedy" is a film genre and a TV genre under different ids).
     // An entity counts once per tag even if it lists the tag twice.
-    for (const tag of new Map(entity.tags.map((t) => [t.id, t])).values()) {
-      const current = scores.get(tag.id);
-      if (current) current.score += weight;
-      else scores.set(tag.id, { tag, score: weight });
+    for (const [key, tag] of new Map(entity.tags.map((t) => [t.name.trim().toLowerCase(), t])).entries()) {
+      const amount = weight * tagTypeWeight(tag.type);
+      const current = scores.get(key);
+      if (current) {
+        current.score += amount;
+        current.count += 1;
+      } else {
+        scores.set(key, { tag, score: amount, count: 1 });
+      }
     }
   }
   if (scores.size === 0) return [];
   const top = Math.max(...[...scores.values()].map((s) => s.score));
-  const divisor = mode === "affinity" ? top : entities.length;
   return [...scores.values()]
     .sort((a, b) => b.score - a.score || a.tag.name.localeCompare(b.tag.name))
     .slice(0, take)
-    .map(({ tag, score }) => ({ id: tag.id, name: tag.name, type: tag.type, affinity: round2(score / divisor) }));
+    .map(({ tag, score, count }) => ({
+      id: tag.id,
+      name: tag.name,
+      type: tag.type,
+      affinity: round2(mode === "affinity" ? score / top : count / entities.length),
+    }));
 }
 
 type TagApi = Pick<Endpoints, "insightsTags" | "getEntities">;

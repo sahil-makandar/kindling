@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import type { Db } from "@/src/db/client";
-import { qlooCache, qlooCalls, runs } from "@/src/db/schema";
+import { qlooCache, qlooCalls } from "@/src/db/schema";
+import { createBatcher, type Batcher } from "@/src/lib/batcher";
 
 export type CallLogEntry = {
   runId?: string;
@@ -22,6 +24,45 @@ export interface QlooStore {
   logCall(entry: CallLogEntry): Promise<string | null>;
 }
 
+type CallInsert = typeof qlooCalls.$inferInsert;
+
+// Call log rows are saved in batches (one connection shares one batcher). The id is made here, so the caller has it
+// at once, and a stage saves the log before the rows that point at it.
+const callBatchers = new WeakMap<Db, Batcher<CallInsert>>();
+function callBatcher(db: Db): Batcher<CallInsert> {
+  let batcher = callBatchers.get(db);
+  if (!batcher) {
+    batcher = createBatcher(async (rows) => {
+      await db.insert(qlooCalls).values(rows);
+    });
+    callBatchers.set(db, batcher);
+  }
+  return batcher;
+}
+
+type CacheInsert = typeof qlooCache.$inferInsert;
+
+// Cache writes are best effort and nobody waits for them, so they go out in batches too.
+const cacheBatchers = new WeakMap<Db, Batcher<CacheInsert>>();
+function cacheBatcher(db: Db): Batcher<CacheInsert> {
+  let batcher = cacheBatchers.get(db);
+  if (!batcher) {
+    batcher = createBatcher(async (rows) => {
+      // One statement cannot update the same key twice, so keep the last row for each key.
+      const latest = [...new Map(rows.map((row) => [row.key, row])).values()];
+      await db
+        .insert(qlooCache)
+        .values(latest)
+        .onConflictDoUpdate({
+          target: qlooCache.key,
+          set: { response: sql`excluded.response`, expiresAt: sql`excluded.expires_at` },
+        });
+    });
+    cacheBatchers.set(db, batcher);
+  }
+  return batcher;
+}
+
 export function createDbStore(db: Db): QlooStore {
   return {
     async getCache(key) {
@@ -33,33 +74,23 @@ export function createDbStore(db: Db): QlooStore {
     },
 
     async setCache(key, response, expiresAt) {
-      await db
-        .insert(qlooCache)
-        .values({ key, response, expiresAt })
-        .onConflictDoUpdate({ target: qlooCache.key, set: { response, expiresAt } });
+      cacheBatcher(db).add({ key, response, expiresAt });
     },
 
     async logCall(entry) {
-      const [row] = await db
-        .insert(qlooCalls)
-        .values({
-          runId: entry.runId,
-          purpose: entry.purpose,
-          endpoint: entry.endpoint,
-          params: entry.params,
-          status: entry.status,
-          ms: entry.ms,
-          resultCount: entry.resultCount,
-          cached: entry.cached,
-        })
-        .returning({ id: qlooCalls.id });
-      if (entry.runId) {
-        await db
-          .update(runs)
-          .set({ qlooCallCount: sql`${runs.qlooCallCount} + 1` })
-          .where(eq(runs.id, entry.runId));
-      }
-      return row?.id ?? null;
+      const id = randomUUID();
+      callBatcher(db).add({
+        id,
+        runId: entry.runId,
+        purpose: entry.purpose,
+        endpoint: entry.endpoint,
+        params: entry.params,
+        status: entry.status,
+        ms: entry.ms,
+        resultCount: entry.resultCount,
+        cached: entry.cached,
+      });
+      return id;
     },
   };
 }

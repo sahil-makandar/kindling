@@ -15,7 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed-demo": "node -e \"console.log('db:seed-demo: not yet')\"",
-    "qloo:spike": "node -e \"console.log('qloo:spike: not yet')\"",
+    "qloo:spike": "tsx --env-file=.env.local scripts/qloo-spike.ts",
     "lint:copy": "tsx scripts/lint-copy.ts",
     "db:smoke": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/db-smoke.ts"
   },

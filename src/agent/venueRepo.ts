@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb, type Db } from "@/src/db/client";
 import { venues } from "@/src/db/schema";
 import { searchEntities } from "@/src/qloo/endpoints";
+import type { QlooTag } from "@/src/qloo/schemas";
 import { createLocateStage, type LocatorDeps } from "./locator";
 import type { StageFn } from "./runStage";
 
@@ -19,13 +20,14 @@ export function createDbVenueRepo(db: Db): Pick<LocatorDeps, "getVenue" | "saveM
         venueType: row.venueType,
         qlooEntityId: row.qlooEntityId,
         qlooEntityName: row.qlooEntityName,
+        qlooTags: row.qlooTags as QlooTag[] | null,
       };
     },
 
     async saveMatch(venueId, match) {
       await db
         .update(venues)
-        .set({ qlooEntityId: match.id, qlooEntityName: match.name })
+        .set({ qlooEntityId: match.id, qlooEntityName: match.name, qlooTags: match.tags })
         .where(eq(venues.id, venueId));
     },
   };

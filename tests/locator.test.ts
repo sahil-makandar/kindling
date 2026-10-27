@@ -20,7 +20,8 @@ const place = (id: string, name: string, tags: string[], geo?: [number, number])
   name,
   subtype: "urn:entity:place",
   tags: tags.map((t) => ({ id: `t_${t}`, name: t })),
-  properties: geo ? { geocode: { latitude: geo[0], longitude: geo[1] } } : {},
+  properties: {},
+  ...(geo ? { location: { lat: geo[0], lon: geo[1] } } : {}),
 });
 
 const found = (items: QlooEntity[]) => ({ items, endpoint: "/search", params: {} as Record<string, string> });
@@ -61,7 +62,7 @@ describe("cityFromAddress", () => {
 describe("pickVenueMatch", () => {
   it("accepts a close name with a hospitality category", () => {
     const { match, skipped } = pickVenueMatch(lanternRoom, [place("p1", "The Lantern Room", ["Cafe"])]);
-    expect(match).toEqual({ id: "p1", name: "The Lantern Room", category: "cafe" });
+    expect(match).toEqual({ id: "p1", name: "The Lantern Room", category: "cafe", tags: [{ id: "t_Cafe", name: "Cafe" }] });
     expect(skipped).toEqual([]);
   });
 
@@ -97,9 +98,34 @@ describe("pickVenueMatch", () => {
     expect(skipped[0].reason).toBe("too far away");
   });
 
+  it("labels a bookstore cafe by what the owner says it is, not by the first category Qloo lists", () => {
+    const tagged = (names: string[]): QlooEntity => ({
+      ...place("p", "Corner Books", []),
+      tags: names.map((n) => ({ id: `c_${n}`, name: n, type: "urn:tag:category:place" })),
+    });
+    const hit = tagged(["Place", "Restaurant", "Shopping", "Event venue", "Cafe", "Book store"]);
+    const venue = { name: "Corner Books Cafe", lat: 40.7, lon: -74 };
+    expect(pickVenueMatch({ ...venue, venueType: "bookstore" }, [hit]).match?.category).toBe("book store");
+    expect(pickVenueMatch({ ...venue, venueType: "cafe" }, [hit]).match?.category).toBe("cafe");
+    expect(pickVenueMatch(venue, [hit]).match?.category).toBe("restaurant");
+  });
+
+  it("uses Qloo's category tags rather than ambience or interest tags to judge a venue", () => {
+    const hit: QlooEntity = {
+      ...place("p", "The Lantern Room", []),
+      tags: [
+        { id: "a1", name: "Cozy bar vibes", type: "urn:tag:ambience:qloo" },
+        { id: "c1", name: "Tattoo shop", type: "urn:tag:category:place" },
+      ],
+    };
+    const { match, skipped } = pickVenueMatch(lanternRoom, [hit]);
+    expect(match).toBeNull();
+    expect(skipped).toEqual([{ name: "The Lantern Room", reason: "tattoo shop" }]);
+  });
+
   it("keeps a match with no category information and no coordinates", () => {
     const { match } = pickVenueMatch(lanternRoom, [place("p", "The Lantern Room", [])]);
-    expect(match).toEqual({ id: "p", name: "The Lantern Room", category: null });
+    expect(match).toEqual({ id: "p", name: "The Lantern Room", category: null, tags: [] });
   });
 
   it("returns no match for an empty result list", () => {

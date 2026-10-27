@@ -1,11 +1,11 @@
-import { QlooError } from "@/src/qloo/client";
+import { QlooError } from "@/src/qloo/errors";
 import type { Endpoints } from "@/src/qloo/endpoints";
-import type { QlooEntity } from "@/src/qloo/schemas";
-import { areaTags } from "@/src/qloo/tags";
+import type { QlooEntity, QlooTag } from "@/src/qloo/schemas";
+import { areaTags, tagsFromEntities } from "@/src/qloo/tags";
 import { traceEmptyResult } from "../qlooTrace";
 import type { Tracer } from "../trace";
 import { compactEntities, compactTags, SignalPool, STRONG_DOMAIN_MIN, strongestLine, type PoolSignal } from "./pool";
-import { buildLadder, DOMAIN_LABEL, planFor, type ScoutDomain } from "./plan";
+import { buildLadder, DOMAIN_LABEL, planFor, TRENDING_DOMAINS, type ScoutDomain } from "./plan";
 
 // The Scout's working state and the actions the model can take. Everything that costs a Qloo call goes
 // through here, so the budget, the trace lines and the thin-data rules are the same whether a model picks
@@ -15,6 +15,11 @@ export const MAX_QLOO_CALLS = 16;
 // The last few calls are kept for re-scanning after the radius is widened.
 export const RESERVE_FOR_RESCANS = 3;
 
+// Qloo's area favourites are dominated by the biggest names (top results all sit at popularity 0.9 and above, and
+// look alike in every neighbourhood). The "local" band caps popularity so the more distinctive picks show up.
+export const LOCAL_POPULARITY_MAX = 0.9;
+export type Band = "local" | "mainstream";
+
 export type ScoutVenue = {
   name: string;
   venueType: string;
@@ -22,6 +27,8 @@ export type ScoutVenue = {
   lon: number;
   city: string | null;
   qlooEntityId: string | null;
+  // The venue's own tags on Qloo (ambience, interests, category...). Empty if the venue is not in Qloo.
+  tags: QlooTag[];
 };
 
 export type ScoutApi = Pick<Endpoints, "insightsEntities" | "insightsTags" | "getEntities">;
@@ -37,6 +44,8 @@ function sentence(text: string): string {
   const plain = text.replace(DASHES, "-").replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
   return plain ? `${plain}.` : "";
 }
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export class ScoutRun {
   readonly pool = new SignalPool();
@@ -112,6 +121,11 @@ export class ScoutRun {
 
   has(action: string, domain?: string): boolean {
     return this.doneAt.has(this.key(action, domain));
+  }
+
+  // Has this domain been read for the area, in either band?
+  hasArea(domain: string): boolean {
+    return this.has("area-local", domain) || this.has("area-mainstream", domain);
   }
 
   // Domains whose latest area scan was thin at a narrower radius than the current one.
@@ -192,16 +206,39 @@ export class ScoutRun {
 
   // ---- the actions ----
 
-  async scanArea(domain: ScoutDomain, reason: string): Promise<ToolResult> {
-    const refused = this.refusal("area", domain);
+  // The venue's own tags, already known from the Locator. Costs no Qloo call.
+  async adoptVenueTags(): Promise<void> {
+    const tags = this.deps.venue.tags;
+    if (tags.length === 0) return;
+    this.pool.addTags(tags, { source: "venue", callId: null });
+    await this.deps.trace.info(
+      `${this.deps.venue.name} on Qloo is tagged: ${tags.slice(0, 8).map((t) => t.name).join(", ")}.`,
+      { tags: tags.length },
+    );
+  }
+
+  async scanArea(domain: ScoutDomain, reason: string, band: Band = "local"): Promise<ToolResult> {
+    const action = `area-${band}`;
+    const refused = this.refusal(action, domain);
     if (refused) return this.refuse(refused);
     const label = DOMAIN_LABEL[domain];
-    await this.deps.trace.info(`Next: read the area's taste in ${label}. ${sentence(reason)}`, { tool: "scan_area", domain, reason });
+    const kind = band === "local" ? "distinctive " : "mainstream ";
+    await this.deps.trace.info(`Next: read the area's ${kind}taste in ${label}. ${sentence(reason)}`, {
+      tool: "scan_area",
+      domain,
+      band,
+      reason,
+    });
 
     return this.guarded(label, () =>
-      this.spendOn("area", domain, 1, async () => {
+      this.spendOn(action, domain, 1, async () => {
         const result = await this.deps.api.insightsEntities(
-          { domain, signalArea: this.ladder[this.step].spec, take: 15 },
+          {
+            domain,
+            signalArea: this.ladder[this.step].spec,
+            popularityMax: band === "local" ? LOCAL_POPULARITY_MAX : undefined,
+            take: 15,
+          },
           { purpose: "scout.area_entities", runId: this.deps.runId },
         );
         if (result.empty) await traceEmptyResult(this.deps.trace, `${label} ${this.radiusLabel}`, result);
@@ -209,15 +246,15 @@ export class ScoutRun {
 
         const withAffinity = result.items.filter((e) => e.affinity !== undefined).length;
         await this.deps.trace.info(
-          `Reading what people ${this.radiusLabel} love in ${label}... ${result.items.length} result${result.items.length === 1 ? "" : "s"}.${result.items.length ? ` Strongest: ${strongestLine(result.items)}.` : ""}`,
-          { domain, callId: result.callId, cached: result.cached },
+          `Reading what people ${this.radiusLabel} love in ${label}${band === "local" ? ", beyond the biggest names" : ", the mainstream picks"}... ${plural(result.items.length, "result")}.${result.items.length ? ` Strongest: ${strongestLine(result.items)}.` : ""}`,
+          { domain, band, callId: result.callId, cached: result.cached },
         );
 
         const thin = withAffinity < STRONG_DOMAIN_MIN;
         if (thin) {
           this.thinAt.set(domain, this.step);
           await this.deps.trace.warn(
-            `Qloo has thin data ${this.radiusLabel} for ${label}: only ${withAffinity} result${withAffinity === 1 ? "" : "s"} with an affinity.`,
+            `Qloo has thin data ${this.radiusLabel} for ${label}: only ${plural(withAffinity, "result")} with an affinity.`,
           );
         } else {
           this.thinAt.delete(domain);
@@ -225,6 +262,7 @@ export class ScoutRun {
         return {
           ok: true,
           domain,
+          band,
           radius: this.radiusLabel,
           results: result.items.length,
           thin,
@@ -240,6 +278,8 @@ export class ScoutRun {
     );
   }
 
+  // The vocabulary of the area: Qloo's own tags for the area (the vibe of its places) plus the genres and themes
+  // carried by the entities already scanned, which is what describes taste in film, music and books.
   async scanAreaTags(reason: string): Promise<ToolResult> {
     const refused = this.refusal("tags");
     if (refused) return this.refuse(refused);
@@ -247,7 +287,10 @@ export class ScoutRun {
 
     return this.guarded("the area's tags", () =>
       this.spendOn("tags", undefined, null, async () => {
-        const areaEntities = this.pool.entities().filter((s) => s.appearances.area).map((s) => this.entityAsQloo(s));
+        const areaEntities = this.pool
+          .entities()
+          .filter((s) => s.appearances.area && s.domain !== "place")
+          .map((s) => this.entityAsQloo(s));
         const result = await areaTags(
           this.deps.api,
           { area: this.ladder[this.step].spec, areaEntities, take: 30 },
@@ -256,51 +299,74 @@ export class ScoutRun {
         this.used += result.qlooCalls;
         this.pool.addTags(result.tags, { source: "area", callId: result.callId });
         if (result.fallbackReason) await this.deps.trace.info(result.fallbackReason);
-        if (result.tags.length === 0) {
+
+        const derived = result.source === "qloo_tags" ? tagsFromEntities(areaEntities, "affinity", 20) : [];
+        this.pool.addTags(derived, { source: "area", callId: null });
+
+        if (result.tags.length === 0 && derived.length === 0) {
           await this.deps.trace.warn("No tags were available for this area.");
         } else {
-          await this.deps.trace.info(
-            `Reading the area's tag vocabulary... ${result.tags.length} tags. Top: ${strongestLine(result.tags)}.`,
-            { source: result.source, callId: result.callId },
-          );
+          if (result.tags.length > 0) {
+            await this.deps.trace.info(
+              `Reading the area's tag vocabulary... ${plural(result.tags.length, "tag")}. Top: ${strongestLine(result.tags)}.`,
+              { source: result.source, callId: result.callId },
+            );
+          }
+          if (derived.length > 0) {
+            await this.deps.trace.info(
+              `Genres and themes carried by what the area loves: ${strongestLine(derived, 5)}.`,
+            );
+          }
         }
-        return { ok: true, source: result.source, tags: compactTags(result.tags), ...this.snapshot() };
+        return {
+          ok: true,
+          source: result.source,
+          tags: compactTags(result.tags),
+          genresAndThemes: compactTags(derived, 6),
+          ...this.snapshot(),
+        };
       }),
     );
   }
 
-  async scanVenueCrowd(domain: ScoutDomain, reason: string): Promise<ToolResult> {
+  // Venues like this one near it. Qloo cannot read a venue's crowd for films or music (a place is not a valid
+  // taste signal there), but it can find similar places, which shows the scene the venue competes and
+  // collaborates with.
+  async scanSimilarVenues(reason: string): Promise<ToolResult> {
     const venueId = this.deps.venue.qlooEntityId;
     if (!venueId) {
-      return this.refuse("The venue is not in Qloo, so it has no crowd to read. Skip this and read the area instead.");
+      return this.refuse("The venue is not in Qloo, so there is nothing to compare it with. Skip this and read the area instead.");
     }
-    const refused = this.refusal("crowd", domain);
+    const refused = this.refusal("similar");
     if (refused) return this.refuse(refused);
-    const label = DOMAIN_LABEL[domain];
-    await this.deps.trace.info(`Next: read what the crowd of ${this.deps.venue.name} loves in ${label}. ${sentence(reason)}`, {
-      tool: "scan_venue_crowd",
-      domain,
+    await this.deps.trace.info(`Next: find venues like ${this.deps.venue.name} nearby. ${sentence(reason)}`, {
+      tool: "scan_similar_venues",
       reason,
     });
 
-    return this.guarded(`the venue crowd in ${label}`, () =>
-      this.spendOn("crowd", domain, 1, async () => {
+    return this.guarded("similar venues", () =>
+      this.spendOn("similar", undefined, 1, async () => {
         const result = await this.deps.api.insightsEntities(
-          { domain, signalEntities: [venueId], take: 15 },
-          { purpose: "scout.venue_crowd", runId: this.deps.runId },
+          { domain: "place", signalEntities: [venueId], filterArea: this.ladder[this.step].spec, take: 12 },
+          { purpose: "scout.similar_venues", runId: this.deps.runId },
         );
-        if (result.empty) await traceEmptyResult(this.deps.trace, `the venue crowd in ${label}`, result);
-        this.pool.addEntities(result.items, { domain, source: "venue", callId: result.callId });
+        if (result.empty) await traceEmptyResult(this.deps.trace, `venues like ${this.deps.venue.name}`, result);
+        const others = result.items.filter((p) => p.id !== venueId);
+        this.pool.addEntities(others, { domain: "place", source: "venue", callId: result.callId });
+        const names = others.slice(0, 4).map((p) => p.name).join(", ");
         await this.deps.trace.info(
-          `Reading what people who love ${this.deps.venue.name} also love in ${label}... ${result.items.length} result${result.items.length === 1 ? "" : "s"}.${result.items.length ? ` Strongest: ${strongestLine(result.items)}.` : ""}`,
-          { domain, callId: result.callId },
+          `Looking for venues like ${this.deps.venue.name}... ${plural(others.length, "venue")}${names ? `: ${names}` : ""}.`,
+          { callId: result.callId },
         );
-        return { ok: true, domain, results: result.items.length, top: compactEntities(result.items), ...this.snapshot() };
+        return { ok: true, results: others.length, venues: compactEntities(others, 8), ...this.snapshot() };
       }),
     );
   }
 
   async scanTrending(domain: ScoutDomain, reason: string): Promise<ToolResult> {
+    if (!TRENDING_DOMAINS.includes(domain)) {
+      return this.refuse(`Qloo does not support trends for ${DOMAIN_LABEL[domain]} yet. Try film, music, TV or podcasts.`);
+    }
     const refused = this.refusal("trend", domain);
     if (refused) return this.refuse(refused);
     const label = DOMAIN_LABEL[domain];
@@ -309,13 +375,19 @@ export class ScoutRun {
     return this.guarded(`trends in ${label}`, () =>
       this.spendOn("trend", domain, 1, async () => {
         const result = await this.deps.api.insightsEntities(
-          { domain, signalArea: this.ladder[this.step].spec, trending: true, take: 15 },
+          {
+            domain,
+            signalArea: this.ladder[this.step].spec,
+            trending: true,
+            popularityMax: LOCAL_POPULARITY_MAX,
+            take: 15,
+          },
           { purpose: "scout.trending", runId: this.deps.runId },
         );
         if (result.empty) await traceEmptyResult(this.deps.trace, `trends in ${label} ${this.radiusLabel}`, result);
         this.pool.addEntities(result.items, { domain, source: "trend", callId: result.callId });
         await this.deps.trace.info(
-          `Checking what is rising in ${label} ${this.radiusLabel}... ${result.items.length} result${result.items.length === 1 ? "" : "s"}.${result.items.length ? ` Rising: ${strongestLine(result.items)}.` : ""}`,
+          `Checking what is rising in ${label} ${this.radiusLabel}... ${plural(result.items.length, "result")}.${result.items.length ? ` Rising: ${strongestLine(result.items)}.` : ""}`,
           { domain, callId: result.callId },
         );
         return { ok: true, domain, results: result.items.length, rising: compactEntities(result.items, 5), ...this.snapshot() };
@@ -339,7 +411,7 @@ export class ScoutRun {
         this.pool.addEntities(result.items, { domain: "place", source: "places", callId: result.callId });
         const names = result.items.slice(0, 4).map((p) => p.name).join(", ");
         await this.deps.trace.info(
-          `Looking at the places nearby... ${result.items.length} place${result.items.length === 1 ? "" : "s"}${names ? `: ${names}` : ""}.`,
+          `Looking at the places nearby... ${plural(result.items.length, "place")}${names ? `: ${names}` : ""}.`,
           { callId: result.callId },
         );
         return { ok: true, results: result.items.length, places: compactEntities(result.items, 8), ...this.snapshot() };
@@ -388,7 +460,7 @@ export async function runDeterministicPlan(scout: ScoutRun): Promise<void> {
   let widened = false;
 
   for (const domain of domains) {
-    if (scout.has("area", domain) && !scout.staleDomains().includes(domain)) continue;
+    if (scout.hasArea(domain) && !scout.staleDomains().includes(domain)) continue;
     const result = await scout.scanArea(domain, why);
     if (result.ok && result.thin && scout.canWiden && !widened) {
       widened = true;
@@ -400,16 +472,16 @@ export async function runDeterministicPlan(scout: ScoutRun): Promise<void> {
     await scout.scanArea(domain as ScoutDomain, "Scanning again at the wider radius.");
   }
 
-  if (!scout.has("tags")) await scout.scanAreaTags(why);
   if (!scout.has("places")) await scout.scanNearbyPlaces(why);
 
   const strong = domains.filter((d) => scout.pool.areaEntities(d).length >= STRONG_DOMAIN_MIN);
-  for (const domain of strong.slice(0, 2)) {
+  for (const domain of strong.filter((d) => TRENDING_DOMAINS.includes(d)).slice(0, 2)) {
     if (!scout.has("trend", domain)) await scout.scanTrending(domain, why);
   }
-  if (scout.venue.qlooEntityId) {
-    for (const domain of strong.slice(0, 2)) {
-      if (!scout.has("crowd", domain)) await scout.scanVenueCrowd(domain, why);
-    }
+  if (scout.venue.qlooEntityId && !scout.has("similar")) await scout.scanSimilarVenues(why);
+  if (!scout.has("tags")) await scout.scanAreaTags(why);
+  // The mainstream picks, for the crowd-pulling anchors the distinctive band leaves out.
+  for (const domain of strong.slice(0, 2)) {
+    if (!scout.has("area-mainstream", domain)) await scout.scanArea(domain, why, "mainstream");
   }
 }

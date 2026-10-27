@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb, type Db } from "@/src/db/client";
 import { runs, signals } from "@/src/db/schema";
+import { flushAllWrites } from "@/src/lib/batcher";
 import { qloo } from "@/src/qloo/endpoints";
 import { runToolLoop } from "../llm";
 import type { StageFn } from "../runStage";
@@ -14,6 +15,8 @@ export function createDbScoutRepo(db: Db): Pick<ScoutDeps, "saveSignals" | "save
   return {
     async saveSignals(runId, pool: PoolSignal[]) {
       if (pool.length === 0) return;
+      // The signals point at rows in the Qloo call log, so the log has to be saved first.
+      await flushAllWrites();
       await db
         .insert(signals)
         .values(

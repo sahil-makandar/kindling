@@ -26,7 +26,7 @@ function fixtureEndpoints() {
 }
 
 const ctx = { purpose: "scout.area_entities" as const };
-const DOMAINS: EntityDomain[] = ["artist", "movie", "tv_show", "book", "podcast", "video_game"];
+const DOMAINS: EntityDomain[] = ["artist", "movie", "tv_show", "book", "podcast"];
 const area = (key: string, radiusM: number): GeoArea => {
   const loc = FIXTURE_LOCATIONS.find((l) => l.key === key);
   if (!loc) throw new Error(`no fixture location ${key}`);
@@ -84,11 +84,11 @@ describe("area scans (fixtures)", () => {
 
   it("is thin at small radii in Logan Square and fills in when widened", async () => {
     const { api } = fixtureEndpoints();
-    const small = await api.insightsEntities({ domain: "artist", signalArea: area("logan_square", 1500) }, ctx);
-    const wide = await api.insightsEntities({ domain: "artist", signalArea: area("logan_square", 3000) }, ctx);
+    const small = await api.insightsEntities({ domain: "artist", signalArea: area("logan_square", 500) }, ctx);
+    const wide = await api.insightsEntities({ domain: "artist", signalArea: area("logan_square", 1000) }, ctx);
     expect(small.items.length).toBeLessThan(5);
     expect(wide.items.length).toBeGreaterThanOrEqual(5);
-    const smallTags = await api.insightsTags({ signalArea: area("logan_square", 1500) }, ctx);
+    const smallTags = await api.insightsTags({ signalArea: area("logan_square", 500) }, ctx);
     expect(smallTags.items.length).toBeLessThanOrEqual(5);
   });
 
@@ -158,8 +158,8 @@ describe("venue lookup (fixtures)", () => {
 
   it("gets entities by id", async () => {
     const { api } = fixtureEndpoints();
-    const { items } = await api.getEntities(["fx_hades", "fx_missing"], ctx);
-    expect(items.map((i) => i.name)).toEqual(["Hades"]);
+    const { items } = await api.getEntities(["fx_circe", "fx_missing"], ctx);
+    expect(items.map((i) => i.name)).toEqual(["Circe"]);
   });
 });
 
@@ -190,13 +190,48 @@ describe("verification calls (fixtures)", () => {
     expect(soho.items).toEqual([]);
   });
 
-  it("builds a venue crowd from the venue's home neighbourhood", async () => {
+  it("finds venues like a venue, near it, and never the venue itself", async () => {
     const { api } = fixtureEndpoints();
     const { items } = await api.insightsEntities(
-      { domain: "movie", signalEntities: ["fx_place_the_lantern_room"] },
-      { purpose: "scout.venue_crowd" },
+      { domain: "place", signalEntities: ["fx_place_the_lantern_room"], filterArea: area("williamsburg", 1000) },
+      { purpose: "scout.similar_venues" },
     );
-    expect(items[0].name).toBe("Spirited Away");
+    expect(items.length).toBeGreaterThanOrEqual(4);
+    expect(items.map((i) => i.id)).not.toContain("fx_place_the_lantern_room");
+    expect(items[0].location).toBeDefined();
+  });
+
+  it("refuses a place as the taste signal for films or music, as the real API does", async () => {
+    const { api } = fixtureEndpoints();
+    await expect(
+      api.insightsEntities({ domain: "movie", signalEntities: ["fx_place_the_lantern_room"] }, { purpose: "scout.similar_venues" }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("does not support video games, as the real API does", async () => {
+    const { api } = fixtureEndpoints();
+    await expect(
+      api.insightsEntities({ domain: "video_game" as never, signalArea: area("soho", 500) }, ctx),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("caps popularity when asked, putting the more distinctive picks first without shrinking the list", async () => {
+    const { api } = fixtureEndpoints();
+    const plain = await api.insightsEntities({ domain: "movie", signalArea: area("soho", 500) }, ctx);
+    const capped = await api.insightsEntities({ domain: "movie", signalArea: area("soho", 500), popularityMax: 0.9 }, ctx);
+    expect(capped.items).toHaveLength(plain.items.length);
+    expect(capped.items[0].popularity).toBeLessThanOrEqual(0.9);
+    expect(capped.items.map((i) => i.id)).not.toEqual(plain.items.map((i) => i.id));
+  });
+
+  it("writes places with coordinates, an address and a neighbourhood, and tags in the lookup shape", async () => {
+    const { api } = fixtureEndpoints();
+    const { items } = await api.searchEntities({ query: "The Lantern Room Brooklyn", types: ["place"] }, ctx);
+    const place = items[0];
+    expect(place.location).toEqual({ lat: expect.any(Number), lon: expect.any(Number) });
+    expect(place.address).toMatch(/Bedford Ave/);
+    expect(place.neighborhood).toBe("Williamsburg");
+    expect(place.tags[0].id).toMatch(/^fx_tag_/);
   });
 });
 

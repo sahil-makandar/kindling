@@ -15,9 +15,11 @@ import {
 
 export type Endpoints = ReturnType<typeof createEndpoints>;
 
-export type EntityDomain = "artist" | "movie" | "tv_show" | "book" | "podcast" | "video_game" | "place";
+// video_game is on Qloo's official list but the API answers 400 "not supported for filter.type" (live spike), so it is left out.
+export type EntityDomain = "artist" | "movie" | "tv_show" | "book" | "podcast" | "place";
 
-// Radius unit is assumed to be metres until the live spike confirms it (docs/QLOO_API.md section 7, question 1).
+  // Radius is in metres (live spike). Resolution is coarse: 150 m and 1,500 m give identical results, and at 3 km two
+  // different neighbourhoods give identical lists, so stay at or under about 2 km for anything local.
 export type GeoArea = { lon: number; lat: number; radiusM: number };
 
 // An area is a point with a radius, or, as the last resort when data is thin, a whole city by name.
@@ -58,6 +60,9 @@ export type InsightsEntitiesArgs = {
   filterArea?: AreaSpec;
   trending?: boolean;
   excludeEntities?: string[];
+  // 0 to 1. Qloo's area favourites are dominated by the biggest names (popularity above 0.9). Capping popularity
+  // surfaces the more distinctive picks.
+  popularityMax?: number;
   take?: number;
 };
 
@@ -126,6 +131,7 @@ export function createEndpoints(get: QlooGet) {
           "signal.interests.entities": args.signalEntities?.join(","),
           "signal.interests.tags": args.signalTags?.join(","),
           "filter.exclude.entities": args.excludeEntities?.join(","),
+          "filter.popularity.max": args.popularityMax,
           "bias.trends": args.trending ? "high" : undefined,
           take: args.take ?? 15,
         },
@@ -151,7 +157,7 @@ export function createEndpoints(get: QlooGet) {
 
     // Where a taste concentrates on the map. Shape is UNVERIFIED until the spike.
     insightsHeatmap(
-      args: { signalEntities: string[]; filterArea: GeoArea },
+      args: { signalEntities: string[]; filterArea: GeoArea; limit?: number },
       ctx: QlooContext,
     ): Promise<EndpointResult<QlooHeatPoint>> {
       return call(
@@ -162,7 +168,7 @@ export function createEndpoints(get: QlooGet) {
           ...withArea("filter", args.filterArea),
         },
         ctx,
-        parseHeatmapResults,
+        (data) => parseHeatmapResults(data, args.limit),
       );
     },
 

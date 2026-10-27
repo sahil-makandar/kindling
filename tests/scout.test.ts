@@ -33,7 +33,7 @@ const entity = (id: string, domain: string, affinity: number | undefined, tags: 
 });
 
 const VENUES: Record<string, ScoutVenue> = {
-  soho: { name: "Crosby Street Coffee", venueType: "cafe", lat: 40.7246, lon: -73.9973, city: "New York", qlooEntityId: null },
+  soho: { name: "Crosby Street Coffee", venueType: "cafe", lat: 40.7246, lon: -73.9973, city: "New York", qlooEntityId: null, tags: [] },
   williamsburg: {
     name: "The Lantern Room",
     venueType: "cafe",
@@ -41,9 +41,10 @@ const VENUES: Record<string, ScoutVenue> = {
     lon: -73.9571,
     city: "Brooklyn",
     qlooEntityId: "fx_place_the_lantern_room",
+    tags: [],
   },
-  east_austin: { name: "East Side Roasters", venueType: "cafe", lat: 30.263, lon: -97.723, city: "Austin", qlooEntityId: null },
-  logan_square: { name: "The Page Turner Cafe", venueType: "cafe", lat: 41.9296, lon: -87.7083, city: "Chicago", qlooEntityId: null },
+  east_austin: { name: "East Side Roasters", venueType: "cafe", lat: 30.263, lon: -97.723, city: "Austin", qlooEntityId: null, tags: [] },
+  logan_square: { name: "The Page Turner Cafe", venueType: "cafe", lat: 41.9296, lon: -87.7083, city: "Chicago", qlooEntityId: null, tags: [] },
 };
 
 function fixtureSetup(venue: ScoutVenue, overrides: { api?: ScoutApi; maxCalls?: number } = {}) {
@@ -109,7 +110,7 @@ describe("SignalPool", () => {
     expect(pool.entities("place")).toHaveLength(5);
   });
 
-  it("does not count venue-crowd or trend results toward a strong area domain", () => {
+  it("does not count venue or trend results toward a strong area domain", () => {
     const pool = new SignalPool();
     pool.addEntities(["a", "b", "c", "d", "e"].map((id) => entity(id, "movie", 0.8)), { domain: "movie", source: "venue", callId: null });
     expect(pool.strongDomains()).toEqual([]);
@@ -119,7 +120,10 @@ describe("SignalPool", () => {
     const rows = compactEntities([entity("a", "movie", 0.912345, ["t1", "t2", "t3", "t4"])]);
     expect(rows).toEqual([{ id: "a", name: "a", affinity: 0.91, tags: ["t1", "t2", "t3"] }]);
     expect(compactEntities(Array.from({ length: 10 }, (_, i) => entity(`e${i}`, "movie", 0.5)))).toHaveLength(6);
-    expect(strongestLine([{ name: "Piranesi", affinity: 0.91 }, { name: "Circe" }])).toBe("Piranesi (0.91), Circe");
+    expect(strongestLine([{ name: "Piranesi", affinity: 0.91 }, { name: "Circe", affinity: 0.88 }])).toBe("Piranesi (0.91), Circe (0.88)");
+    // Qloo's area favourites all score about 1, so the numbers say nothing and are left out.
+    expect(strongestLine([{ name: "A", affinity: 0.9999 }, { name: "B", affinity: 0.9996 }, { name: "C", affinity: 0.9991 }])).toBe("A, B, C");
+    expect(strongestLine([{ name: "Only", affinity: 0.5 }])).toBe("Only");
   });
 });
 
@@ -140,11 +144,11 @@ describe("plan and ladder", () => {
     }
   });
 
-  it("widens from 1.5 km to 3 km to 6 km to the whole city", () => {
+  it("widens from 500 m to 1 km to 2 km to the whole city", () => {
     const ladder = buildLadder({ lon: -73.95, lat: 40.7 }, "Brooklyn");
-    expect(ladder.map((s) => s.label)).toEqual(["within 1.5 km", "within 3 km", "within 6 km", "across Brooklyn"]);
-    expect(ladder.map((s) => s.name)).toEqual(["1.5 km", "3 km", "6 km", "all of Brooklyn"]);
-    expect(ladder.map((s) => s.radiusM)).toEqual([1500, 3000, 6000, null]);
+    expect(ladder.map((s) => s.label)).toEqual(["within 500 m", "within 1 km", "within 2 km", "across Brooklyn"]);
+    expect(ladder.map((s) => s.name)).toEqual(["500 m", "1 km", "2 km", "all of Brooklyn"]);
+    expect(ladder.map((s) => s.radiusM)).toEqual([500, 1000, 2000, null]);
     expect(ladder[3].spec).toEqual({ city: "Brooklyn" });
   });
 
@@ -165,11 +169,11 @@ describe("scan_area", () => {
   it("reads the area, fills the pool and writes the choice and the result into the trace", async () => {
     const { scout, messages } = fixtureSetup(VENUES.soho);
     const result = await scout.scanArea("movie", "Film is the most relevant domain for a cafe");
-    expect(result).toMatchObject({ ok: true, domain: "movie", radius: "within 1.5 km", results: 8, thin: false, callsUsed: 1, callsLeft: 15 });
-    expect(messages()).toEqual([
-      "Next: read the area's taste in film. Film is the most relevant domain for a cafe.",
-      "Reading what people within 1.5 km love in film... 8 results. Strongest: In the Mood for Love (0.94), Chungking Express (0.91), Lost in Translation (0.89).",
-    ]);
+    expect(result).toMatchObject({ ok: true, domain: "movie", band: "local", radius: "within 500 m", results: 8, thin: false, callsUsed: 1, callsLeft: 15 });
+    expect(messages()[0]).toBe("Next: read the area's distinctive taste in film. Film is the most relevant domain for a cafe.");
+    expect(messages()[1]).toMatch(
+      /^Reading what people within 500 m love in film, beyond the biggest names\.\.\. 8 results\. Strongest: In the Mood for Love \(0\.94\), Chungking Express \(0\.91\), /,
+    );
     expect(scout.pool.areaEntities("movie")).toHaveLength(8);
   });
 
@@ -177,7 +181,7 @@ describe("scan_area", () => {
     const { scout, repo } = fixtureSetup(VENUES.soho);
     await scout.scanArea("book", "Books next — the area reads a lot");
     const choice = repo.traces[0];
-    expect(choice.message).toBe("Next: read the area's taste in books. Books next - the area reads a lot.");
+    expect(choice.message).toBe("Next: read the area's distinctive taste in books. Books next - the area reads a lot.");
     expect(choice.data).toMatchObject({ tool: "scan_area", domain: "book" });
   });
 
@@ -194,7 +198,7 @@ describe("scan_area", () => {
     const result = await scout.scanArea("artist", "start with music");
     expect(result).toMatchObject({ ok: true, results: 3, thin: true });
     expect(String(result.hint)).toMatch(/widen_radius once/);
-    expect(messages().at(-1)).toBe("Qloo has thin data within 1.5 km for music: only 3 results with an affinity.");
+    expect(messages().at(-1)).toBe("Qloo has thin data within 500 m for music: only 3 results with an affinity.");
   });
 
   it("allows the same scan again after widening and gets the full answer", async () => {
@@ -202,15 +206,15 @@ describe("scan_area", () => {
     await scout.scanArea("artist", "start");
     expect(scout.staleDomains()).toEqual([]); // thin, but not yet stale: it was read at the current radius
     const widen = await scout.widenRadius("The first scan came back thin");
-    expect(widen).toMatchObject({ ok: true, radius: "within 3 km", stale: ["artist"] });
-    expect(messages()).toContain("Qloo has thin data within 1.5 km, widening to 3 km. The first scan came back thin.");
-    expect(scout.radiusM).toBe(3000);
+    expect(widen).toMatchObject({ ok: true, radius: "within 1 km", stale: ["artist"] });
+    expect(messages()).toContain("Qloo has thin data within 500 m, widening to 1 km. The first scan came back thin.");
+    expect(scout.radiusM).toBe(1000);
 
     const again = await scout.scanArea("artist", "again, wider");
     expect(again).toMatchObject({ ok: true, results: 8, thin: false });
     expect(scout.staleDomains()).toEqual([]);
     expect(scout.pool.strongDomains()).toEqual(["artist"]);
-    expect(store.calls.map((c) => c.params["signal.location.radius"])).toEqual(["1500", "3000"]);
+    expect(store.calls.map((c) => c.params["signal.location.radius"])).toEqual(["500", "1000"]);
   });
 
   it("uses the city name as the last step", async () => {
@@ -241,7 +245,7 @@ describe("scan_area", () => {
     const { scout, messages } = fixtureSetup(VENUES.soho, { api: empty });
     const result = await scout.scanArea("movie", "check");
     expect(result).toMatchObject({ ok: true, results: 0, thin: true });
-    expect(messages().some((m) => m.startsWith("Qloo returned nothing for film within 1.5 km.") && m.includes("filter.type=urn:entity:movie, take=15"))).toBe(true);
+    expect(messages().some((m) => m.startsWith("Qloo returned nothing for film within 500 m.") && m.includes("filter.type=urn:entity:movie, take=15"))).toBe(true);
   });
 
   it("tells the model about a Qloo failure and lets it carry on", async () => {
@@ -273,8 +277,10 @@ describe("the other actions", () => {
     await scout.scanArea("movie", "x");
     const result = await scout.scanAreaTags("Need the area's vocabulary");
     expect(result).toMatchObject({ ok: true, source: "qloo_tags", callsUsed: 2 });
-    expect(messages().at(-1)).toMatch(/^Reading the area's tag vocabulary\.\.\. 11 tags\. Top: Japanese \(0\.95\)/);
-    expect(scout.pool.tags()).toHaveLength(11);
+    expect(messages().some((m) => /^Reading the area's tag vocabulary\.\.\. 11 tags\. Top: Japanese \(0\.95\)/.test(m))).toBe(true);
+    expect(messages().at(-1)).toMatch(/^Genres and themes carried by what the area loves: /);
+    expect(scout.pool.tags().length).toBeGreaterThanOrEqual(11);
+    expect(result.genresAndThemes).toBeDefined();
   });
 
   it("falls back to the tags on the area's entities when Qloo has no tag view, and counts the failed try", async () => {
@@ -311,21 +317,52 @@ describe("the other actions", () => {
     expect(result).toMatchObject({ source: "entity_tags", callsUsed: 1 });
   });
 
-  it("refuses a venue-crowd scan when the venue is not in Qloo, without a call", async () => {
+  it("refuses to look for similar venues when the venue is not in Qloo, without a call", async () => {
     const { scout, store } = fixtureSetup(VENUES.soho);
-    const result = await scout.scanVenueCrowd("movie", "see who comes here");
+    const result = await scout.scanSimilarVenues("see the scene");
     expect(result).toMatchObject({ ok: false });
     expect(String(result.error)).toMatch(/not in Qloo/);
     expect(store.calls).toHaveLength(0);
   });
 
-  it("reads the venue's own crowd when the venue is in Qloo", async () => {
-    const { scout, messages } = fixtureSetup(VENUES.williamsburg);
-    const result = await scout.scanVenueCrowd("movie", "see who comes here");
-    expect(result).toMatchObject({ ok: true, domain: "movie" });
-    expect(messages().at(-1)).toMatch(/^Reading what people who love The Lantern Room also love in film\.\.\. 8 results\. Strongest: /);
-    expect(scout.pool.get("fx_spirited_away")?.appearances.venue).toBeDefined();
-    expect(scout.pool.strongDomains()).toEqual([]);
+  it("finds venues like the venue when it is in Qloo, without listing the venue itself", async () => {
+    const { scout, messages, store } = fixtureSetup(VENUES.williamsburg);
+    const result = await scout.scanSimilarVenues("see the scene it sits in");
+    expect(result).toMatchObject({ ok: true, results: 5 });
+    expect(messages().at(-1)).toMatch(/^Looking for venues like The Lantern Room\.\.\. 5 venues: /);
+    expect(scout.pool.entities("place")).toHaveLength(5);
+    expect(scout.pool.get("fx_place_the_lantern_room")).toBeUndefined();
+    expect(scout.pool.entities("place")[0].appearances.venue).toBeDefined();
+    expect(store.calls[0]).toMatchObject({ purpose: "scout.similar_venues" });
+    expect(store.calls[0].params["signal.interests.entities"]).toBe("fx_place_the_lantern_room");
+  });
+
+  it("scans a local band that caps popularity and a mainstream band that does not", async () => {
+    const { scout, store } = fixtureSetup(VENUES.soho);
+    await scout.scanArea("movie", "distinctive picks");
+    await scout.scanArea("movie", "the crowd pullers", "mainstream");
+    expect(store.calls[0].params["filter.popularity.max"]).toBe("0.9");
+    expect(store.calls[1].params["filter.popularity.max"]).toBeUndefined();
+    expect(scout.hasArea("movie")).toBe(true);
+    const again = await scout.scanArea("movie", "again", "mainstream");
+    expect(again).toMatchObject({ ok: false, error: "Already done at this radius. Pick something new." });
+  });
+
+  it("adds the venue's own Qloo tags to the pool at no cost, and says what they are", async () => {
+    const tags = [
+      { id: "t1", name: "Dj sets", type: "urn:tag:activity_type:qloo" },
+      { id: "t2", name: "City view", type: "urn:tag:view:qloo" },
+    ];
+    const { scout, messages, store } = fixtureSetup({ ...VENUES.williamsburg, tags });
+    await scout.adoptVenueTags();
+    expect(scout.callsUsed).toBe(0);
+    expect(store.calls).toHaveLength(0);
+    expect(scout.pool.tags().map((t) => t.name)).toEqual(["Dj sets", "City view"]);
+    expect(scout.pool.get("t1")?.source).toBe("venue");
+    expect(messages()).toEqual(["The Lantern Room on Qloo is tagged: Dj sets, City view."]);
+    const none = fixtureSetup(VENUES.soho);
+    await none.scout.adoptVenueTags();
+    expect(none.messages()).toEqual([]);
   });
 
   it("reads what is rising and records each rank", async () => {
@@ -335,6 +372,23 @@ describe("the other actions", () => {
     const trending = scout.pool.entities("artist").filter((s) => s.appearances.trend);
     expect(trending).toHaveLength(8);
     expect(trending.map((s) => s.appearances.trend?.rank).sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("does not ask Qloo for book trends, which it does not support", async () => {
+    const { scout, store } = fixtureSetup(VENUES.soho);
+    const result = await scout.scanTrending("book", "momentum");
+    expect(result).toMatchObject({ ok: false });
+    expect(String(result.error)).toMatch(/does not support trends for books/);
+    expect(store.calls).toHaveLength(0);
+    expect(scout.callsUsed).toBe(0);
+  });
+
+  it("only picks trend domains Qloo supports in the standard plan", async () => {
+    const { scout, store } = fixtureSetup({ ...VENUES.soho, venueType: "bookstore" });
+    await runDeterministicPlan(scout);
+    const trended = store.calls.filter((c) => c.purpose === "scout.trending").map((c) => c.params["filter.type"]);
+    expect(trended.length).toBeGreaterThan(0);
+    expect(trended).not.toContain("urn:entity:book");
   });
 
   it("reads the nearby places into the pool", async () => {
@@ -379,7 +433,7 @@ describe("budget", () => {
       for (const domain of SCOUT_DOMAINS) {
         await exec(tools, "scan_area", { domain, reason: "again and again" });
         await exec(tools, "scan_trending", { domain, reason: "more" });
-        await exec(tools, "scan_venue_crowd", { domain, reason: "more" });
+        await exec(tools, "scan_similar_venues", { reason: "more" });
       }
       await exec(tools, "scan_area_tags", { reason: "more" });
       await exec(tools, "scan_nearby_places", { reason: "more" });
@@ -444,24 +498,24 @@ describe("deterministic plan", () => {
   it("widens once for Logan Square and says why", async () => {
     const { scout, messages } = fixtureSetup(VENUES.logan_square);
     await runDeterministicPlan(scout);
-    expect(scout.radiusM).toBe(3000);
-    expect(messages().filter((m) => m.startsWith("Qloo has thin data within 1.5 km, widening to 3 km."))).toHaveLength(1);
+    expect(scout.radiusM).toBe(1000);
+    expect(messages().filter((m) => m.startsWith("Qloo has thin data within 500 m, widening to 1 km."))).toHaveLength(1);
     expect(scout.staleDomains()).toEqual([]);
   });
 
   it("does not widen where Qloo already has enough", async () => {
     const { scout } = fixtureSetup(VENUES.soho);
     await runDeterministicPlan(scout);
-    expect(scout.radiusM).toBe(1500);
+    expect(scout.radiusM).toBe(500);
   });
 
-  it("reads the venue crowd only when the venue is in Qloo", async () => {
+  it("looks for similar venues only when the venue is in Qloo", async () => {
     const withVenue = fixtureSetup(VENUES.williamsburg);
     await runDeterministicPlan(withVenue.scout);
-    expect(withVenue.store.calls.filter((c) => c.purpose === "scout.venue_crowd")).toHaveLength(2);
+    expect(withVenue.store.calls.filter((c) => c.purpose === "scout.similar_venues")).toHaveLength(1);
     const without = fixtureSetup(VENUES.soho);
     await runDeterministicPlan(without.scout);
-    expect(without.store.calls.filter((c) => c.purpose === "scout.venue_crowd")).toHaveLength(0);
+    expect(without.store.calls.filter((c) => c.purpose === "scout.similar_venues")).toHaveLength(0);
   });
 
   it("starts with the most relevant domain for the venue type", async () => {
@@ -473,12 +527,12 @@ describe("deterministic plan", () => {
     expect(brewery.store.calls[0].params["filter.type"]).toBe("urn:entity:artist");
   });
 
-  it("uses every Qloo capability: area taste, tags, places, trends and the venue crowd", async () => {
+  it("uses every Qloo capability: area taste, tags, places, trends and similar venues", async () => {
     const { scout, store } = fixtureSetup(VENUES.williamsburg);
     await runDeterministicPlan(scout);
     const purposes = new Set(store.calls.map((c) => c.purpose));
     expect(purposes).toEqual(
-      new Set(["scout.area_entities", "scout.area_tags", "scout.places", "scout.trending", "scout.venue_crowd"]),
+      new Set(["scout.area_entities", "scout.area_tags", "scout.places", "scout.trending", "scout.similar_venues"]),
     );
   });
 
@@ -505,7 +559,7 @@ describe("tools", () => {
   it("define the seven tools from the spec", () => {
     const { scout } = fixtureSetup(VENUES.soho);
     expect(Object.keys(buildScoutTools(scout)).sort()).toEqual(
-      ["finish", "scan_area", "scan_area_tags", "scan_nearby_places", "scan_trending", "scan_venue_crowd", "widen_radius"].sort(),
+      ["finish", "scan_area", "scan_area_tags", "scan_nearby_places", "scan_similar_venues", "scan_trending", "widen_radius"].sort(),
     );
   });
 
@@ -569,10 +623,10 @@ describe("Scout stage", () => {
     expect(messages()[0]).toBe(
       "Scouting around The Lantern Room. I have 16 Qloo calls to spend and will pick each one from what I find.",
     );
-    expect(messages().at(-1)).toMatch(/^Scouting done: \d+ Qloo calls, \d strong domains \(.*\), \d+ area tags, 6 nearby places, read within 1\.5 km\.$/);
+    expect(messages().at(-1)).toMatch(/^Scouting done: \d+ Qloo calls, \d strong domains \(.*\), \d+ area tags, 6 nearby places, read within 500 m\.$/);
     expect(saved).toHaveLength(1);
     expect(saved[0].length).toBeGreaterThan(40);
-    expect(radii).toEqual([1500]);
+    expect(radii).toEqual([500]);
     expect(store.calls.length).toBeLessThanOrEqual(16);
     expect(repo.traces.every((t) => t.stage === "scout")).toBe(true);
   });
@@ -580,7 +634,7 @@ describe("Scout stage", () => {
   it("records the widened radius", async () => {
     const { stage, run, trace, radii } = stageSetup("logan_square");
     await stage({ run, trace });
-    expect(radii).toEqual([3000]);
+    expect(radii).toEqual([1000]);
   });
 
   it("lets a model choose each next call from what it found, and explains each choice", async () => {
@@ -612,7 +666,7 @@ describe("Scout stage", () => {
       "scout.area_entities",
       "scout.area_tags",
     ]);
-    expect(messages()).toContain("Next: read the area's taste in books. In the Mood for Love leads film, so check whether books follow.");
+    expect(messages()).toContain("Next: read the area's distinctive taste in books. In the Mood for Love leads film, so check whether books follow.");
     expect(messages()).toContain("Next: check what is rising in film. See whether In the Mood for Love is still rising.");
     // The model finished properly, so the standard plan did not run on top.
     expect(messages().some((m) => m.startsWith("Not enough yet"))).toBe(false);
@@ -633,7 +687,7 @@ describe("Scout stage", () => {
     expect(signals.some((s) => s.kind === "tag")).toBe(true);
     expect(store.calls.length).toBeLessThanOrEqual(16);
     // The two domains the model already scanned were not scanned again.
-    expect(store.calls.filter((c) => c.params["filter.type"] === "urn:entity:movie" && c.purpose === "scout.area_entities")).toHaveLength(1);
+    expect(store.calls.filter((c) => c.params["filter.type"] === "urn:entity:movie" && c.purpose === "scout.area_entities" && c.params["filter.popularity.max"] !== undefined)).toHaveLength(1);
   });
 
   it("hands over to the standard plan without repeating work when the model fails part-way", async () => {
@@ -656,7 +710,7 @@ describe("Scout stage", () => {
     expect(messages()).toContain("Gemini is busy.");
     expect(messages()).toContain("The language model is busy, using the standard plan.");
     const areaScans = store.calls.filter((c) => c.purpose === "scout.area_entities");
-    const domains = areaScans.map((c) => c.params["filter.type"]);
+    const domains = areaScans.map((c) => `${c.params["filter.type"]}|${c.params["filter.popularity.max"] ?? "all"}`);
     expect(new Set(domains).size).toBe(domains.length);
     expect(store.calls.length).toBeLessThanOrEqual(16);
   });

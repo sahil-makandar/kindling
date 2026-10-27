@@ -42,6 +42,8 @@ export const venues = pgTable("venues", {
   baselineHeadcount: integer("baseline_headcount"),
   qlooEntityId: text("qloo_entity_id"),
   qlooEntityName: text("qloo_entity_name"),
+  // The venue's own tags on Qloo, saved by the Locator.
+  qlooTags: jsonb("qloo_tags"),
   isDemo: boolean("is_demo").default(false).notNull(),
   createdAt: createdAt(),
 });
