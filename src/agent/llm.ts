@@ -179,6 +179,18 @@ const defaultLoop: LoopCall = async ({
   return { steps: result.steps.length };
 };
 
+// A busy main model often leaves its smaller sibling free. For a main-tier question, each provider is followed by its
+// own fast-tier model before the next provider is tried.
+export function withQuickerModels(chain: ProviderEntry[], tier: LlmTier): ProviderEntry[] {
+  if (tier !== "main") return chain;
+  return chain.flatMap((entry) => {
+    const main = entry.model("main");
+    const fast = entry.model("fast");
+    if (!main || !fast || main.id === fast.id) return [entry];
+    return [entry, { ...entry, label: `${entry.label} (quicker model)`, model: () => fast }];
+  });
+}
+
 export function createLlm(deps: LlmDeps) {
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const now = deps.now ?? Date.now;
@@ -275,8 +287,9 @@ export function createLlm(deps: LlmDeps) {
 
     // 3. Main provider, then the fallback provider, all inside one time budget.
     const deadline = now() + budgetMs;
-    const chain = usableProviders();
+    const chain = withQuickerModels(usableProviders(), opts.tier);
     for (const [index, entry] of chain.entries()) {
+      if (rejectedKeys.has(entry.name)) continue;
       try {
         const { output, model, ms } = await askProvider(entry, schema, prompt, opts, deadline);
         await deps.store.set(opts.runId, opts.cacheKey, { output, provider: entry.name, model }).catch(() => undefined);

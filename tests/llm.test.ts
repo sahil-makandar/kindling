@@ -13,11 +13,16 @@ const schema = z.object({ title: z.string(), ids: z.array(z.string()) });
 type Answer = z.infer<typeof schema>;
 const good: Answer = { title: "Ghibli night", ids: ["a"] };
 
-function provider(name: "google" | "groq", label: string): ProviderEntry {
+// By default both tiers share one model, so a provider failing means moving to the next provider. quicker gives the
+// fast tier its own model, which is what a main-tier question tries next.
+function provider(name: "google" | "groq", label: string, quicker = false): ProviderEntry {
   return {
     name,
     label,
-    model: (tier) => ({ id: `${name}-${tier}`, model: { modelId: `${name}-${tier}` } as unknown as LanguageModel }),
+    model: (tier) => {
+      const id = quicker ? `${name}-${tier}` : `${name}-main`;
+      return { id, model: { modelId: id } as unknown as LanguageModel };
+    },
   };
 }
 
@@ -107,7 +112,7 @@ describe("generateStructured: live", () => {
   it("uses the fast model for the fast tier", async () => {
     const { llm, calls, options } = setup([() => good]);
     await llm.generateStructured(schema, "p", options({ tier: "fast" }));
-    expect(calls[0].model).toBe("google-fast");
+    expect(calls[0].model).toBe("google-main");
   });
 });
 
@@ -309,7 +314,7 @@ describe("runToolLoop", () => {
       },
     });
     const result = await llm.runToolLoop(tools, "sys", loopOptions(fallback, undefined, run.id));
-    expect(result).toMatchObject({ source: "llm", steps: 3, provider: "google", model: "google-fast" });
+    expect(result).toMatchObject({ source: "llm", steps: 3, provider: "google", model: "google-main" });
     expect(fallback).not.toHaveBeenCalled();
     await Promise.resolve();
     expect(store.calls.get(run.id)).toBe(3);
@@ -342,7 +347,7 @@ describe("runToolLoop", () => {
     });
     const trace = createTracer(repo, run.id, "scout");
     const result = await llm.runToolLoop(tools, "sys", loopOptions(vi.fn(async () => undefined), trace, run.id));
-    expect(used).toEqual(["google-fast", "groq-fast"]);
+    expect(used).toEqual(["google-main", "groq-main"]);
     expect(result).toMatchObject({ source: "llm", provider: "groq" });
     expect(warnings(repo)).toEqual(["Gemini is busy. Trying Groq."]);
   });
@@ -359,7 +364,7 @@ describe("runToolLoop", () => {
     });
     const trace = createTracer(repo, run.id, "scout");
     const result = await llm.runToolLoop(tools, "sys", loopOptions(fallback, trace, run.id));
-    expect(used).toEqual(["google-fast"]);
+    expect(used).toEqual(["google-main"]);
     expect(fallback).toHaveBeenCalledTimes(1);
     expect(result.source).toBe("fallback");
     expect(warnings(repo)).toEqual(["Gemini is busy.", "The language model is busy, using the standard plan."]);
@@ -431,7 +436,7 @@ describe("the provider chain", () => {
     LLM_FALLBACK_PROVIDERS: "groq,openai-compatible",
     GROQ_API_KEY: "q-key",
     GROQ_MODEL: "groq-main",
-    GROQ_MODEL_FAST: "groq-fast",
+    GROQ_MODEL_FAST: "groq-main",
     OPENAI_COMPATIBLE_API_KEY: "o-key",
     OPENAI_COMPATIBLE_BASE_URL: "https://openrouter.ai/api/v1",
     OPENAI_COMPATIBLE_MODEL: "router-main",
@@ -454,7 +459,7 @@ describe("the provider chain", () => {
       ["groq", "Groq"],
       ["openai-compatible", "OpenRouter"],
     ]);
-    expect(providers[1].model("fast")?.id).toBe("groq-fast");
+    expect(providers[1].model("fast")?.id).toBe("groq-main");
     expect(providers[2].model("main")?.id).toBe("router-main");
     expect(notes).toEqual([]);
   });
@@ -583,6 +588,36 @@ describe("timings and rejected keys", () => {
     const loop = (fallback: () => Promise<void>) => ({ runId: "r", tier: "fast" as const, prompt: "p", maxSteps: 3, fallback });
     await llm.runToolLoop({} as ToolSet, "sys", loop(async () => undefined));
     await llm.runToolLoop({} as ToolSet, "sys", loop(async () => undefined));
-    expect(used).toEqual(["google-fast", "groq-fast", "groq-fast"]);
+    expect(used).toEqual(["google-main", "groq-main", "groq-main"]);
+  });
+});
+
+describe("the quicker model", () => {
+  const busy = () => {
+    throw apiError(503);
+  };
+
+  it("tries the provider's own fast model before the next provider when the main model is busy", async () => {
+    const { llm, calls, repo, options } = setup([busy, busy, busy, () => good], { providers: [provider("google", "Gemini", true), provider("groq", "Groq")] });
+    const result = await llm.generateStructured(schema, "p", options());
+    expect(result).toMatchObject({ source: "llm", provider: "google", model: "google-fast" });
+    expect(calls.map((c) => c.model)).toEqual(["google-main", "google-main", "google-main", "google-fast"]);
+    expect(warnings(repo)).toEqual(["Gemini is busy. Trying Gemini (quicker model)."]);
+  });
+
+  it("is not tried for a fast-tier question, which already uses the fast model", async () => {
+    const { llm, calls, options } = setup([() => good], { providers: [provider("google", "Gemini", true)] });
+    await llm.generateStructured(schema, "p", options({ tier: "fast" }));
+    expect(calls.map((c) => c.model)).toEqual(["google-fast"]);
+  });
+
+  it("does not ask a provider that rejected our key again under its other model", async () => {
+    const rejected = () => {
+      throw apiError(401);
+    };
+    const { llm, calls, options } = setup([rejected, () => good], { providers: [provider("google", "Gemini", true), provider("groq", "Groq")] });
+    const result = await llm.generateStructured(schema, "p", options());
+    expect(result).toMatchObject({ provider: "groq" });
+    expect(calls.map((c) => c.model)).toEqual(["google-main", "groq-main"]);
   });
 });
