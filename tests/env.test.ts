@@ -31,10 +31,10 @@ describe("parseEnv", () => {
   });
 
   it("treats blank values from .env files as not set", () => {
-    const env = parseEnv({ ...base, QLOO_API_KEY: "", RATE_LIMIT_PER_HOUR: "", LLM_FALLBACK_PROVIDER: "" });
+    const env = parseEnv({ ...base, QLOO_API_KEY: "", RATE_LIMIT_PER_HOUR: "", LLM_FALLBACK_PROVIDERS: "" });
     expect(env.QLOO_API_KEY).toBeUndefined();
     expect(env.RATE_LIMIT_PER_HOUR).toBe(10);
-    expect(env.LLM_FALLBACK_PROVIDER).toBeUndefined();
+    expect(env.LLM_FALLBACK_PROVIDERS).toEqual([]);
   });
 
   it("reads RATE_LIMIT_PER_HOUR as a number", () => {

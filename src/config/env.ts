@@ -1,16 +1,25 @@
 import { z } from "zod";
 import { APP_NAME, REPO_URL } from "./brand";
 
-export const LLM_PROVIDERS = [
-  "google",
-  "groq",
-  "xai",
-  "openai-compatible",
-  "anthropic",
-] as const;
+// google (Gemini), groq and openai-compatible (OpenRouter) are installed. anthropic is accepted but not installed.
+export const LLM_PROVIDERS = ["google", "groq", "openai-compatible", "anthropic"] as const;
 export type LlmProvider = (typeof LLM_PROVIDERS)[number];
 
 const providerEnum = z.enum(LLM_PROVIDERS);
+
+// "groq,openai-compatible" becomes ["groq", "openai-compatible"].
+const providerList = z
+  .string()
+  .default("")
+  .transform((value) =>
+    value
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean),
+  )
+  .pipe(z.array(providerEnum));
+
+const thinkingLevel = z.enum(["minimal", "low", "medium", "high"]);
 
 const envSchema = z
   .object({
@@ -22,16 +31,23 @@ const envSchema = z
 
     LLM_MODE: z.enum(["mock", "live"]).default("mock"),
     LLM_PROVIDER: providerEnum.default("google"),
-    LLM_FALLBACK_PROVIDER: providerEnum.optional(),
+    // Fallbacks, tried in order when the main provider fails or is rate limited. For example "groq,openai-compatible".
+    LLM_FALLBACK_PROVIDERS: providerList,
+    // Models for the main provider. Each fallback has its own <PROVIDER>_MODEL and <PROVIDER>_MODEL_FAST, and is
+    // skipped when they are missing.
     LLM_MODEL: z.string().min(1).optional(),
     LLM_MODEL_FAST: z.string().min(1).optional(),
-    // Model names for LLM_FALLBACK_PROVIDER. They are different from the main provider's, so they are separate.
-    // If either is missing, the fallback provider is simply not used.
-    LLM_FALLBACK_MODEL: z.string().min(1).optional(),
-    LLM_FALLBACK_MODEL_FAST: z.string().min(1).optional(),
+    GOOGLE_MODEL: z.string().min(1).optional(),
+    GOOGLE_MODEL_FAST: z.string().min(1).optional(),
+    GROQ_MODEL: z.string().min(1).optional(),
+    GROQ_MODEL_FAST: z.string().min(1).optional(),
+    OPENAI_COMPATIBLE_MODEL: z.string().min(1).optional(),
+    OPENAI_COMPATIBLE_MODEL_FAST: z.string().min(1).optional(),
+    // How long Gemini 3 models may think. Left alone they took up to 34 s for a short answer.
+    LLM_THINKING_MAIN: thinkingLevel.default("low"),
+    LLM_THINKING_FAST: thinkingLevel.default("minimal"),
     GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
     GROQ_API_KEY: z.string().min(1).optional(),
-    XAI_API_KEY: z.string().min(1).optional(),
     OPENAI_COMPATIBLE_BASE_URL: z.url().optional(),
     OPENAI_COMPATIBLE_API_KEY: z.string().min(1).optional(),
     ANTHROPIC_API_KEY: z.string().min(1).optional(),
@@ -75,9 +91,6 @@ const envSchema = z
           break;
         case "groq":
           need("GROQ_API_KEY", why);
-          break;
-        case "xai":
-          need("XAI_API_KEY", why);
           break;
         case "openai-compatible":
           need("OPENAI_COMPATIBLE_API_KEY", why);

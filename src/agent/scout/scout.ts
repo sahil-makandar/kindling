@@ -105,6 +105,12 @@ export class ScoutRun {
     return this.ladder.map((s) => s.label);
   }
 
+  // The model finishing ends the model's own tool calls. The stage then fills in the rest of the standard plan, which is
+  // not the model's call, so it reopens the Scout first.
+  resume(): void {
+    this.finishedFlag = false;
+  }
+
   // True once the time limit has passed: nothing new is started, and finishing is allowed.
   get timeUp(): boolean {
     return this.deps.deadlineAt !== undefined && (this.deps.now ?? Date.now)() > this.deps.deadlineAt;
@@ -449,6 +455,22 @@ export class ScoutRun {
     await this.deps.trace.info(`Scout summary: ${sentence(summary)}`, { tool: "finish" });
     return { ok: true, ...this.snapshot() };
   }
+}
+
+// What the standard plan would still do. Empty once the plan is complete, so the stage can tell people what it is
+// adding after a model has chosen its own steps.
+export function planGaps(scout: ScoutRun): string[] {
+  const gaps: string[] = [];
+  const domains = planFor(scout.venue.venueType);
+  const missingDomains = domains.filter((d) => !scout.hasArea(d));
+  if (missingDomains.length > 0) gaps.push(`${missingDomains.map((d) => DOMAIN_LABEL[d]).join(", ")} for the area`);
+  if (!scout.has("places")) gaps.push("nearby places");
+  const strong = domains.filter((d) => scout.pool.areaEntities(d).length >= STRONG_DOMAIN_MIN);
+  if (strong.filter((d) => TRENDING_DOMAINS.includes(d)).slice(0, 2).some((d) => !scout.has("trend", d))) gaps.push("what is rising");
+  if (scout.venue.qlooEntityId && !scout.has("similar")) gaps.push("venues like yours");
+  if (!scout.has("tags")) gaps.push("the area's tags");
+  if (strong.slice(0, 2).some((d) => !scout.has("area-mainstream", d))) gaps.push("the mainstream picks");
+  return gaps;
 }
 
 // The standard plan for the venue type. It runs through the same actions as the model, so the budget and the

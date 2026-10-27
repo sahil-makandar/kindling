@@ -81,7 +81,7 @@ describe("generateStructured: live", () => {
   it("answers from the main provider, counts the call and caches the answer", async () => {
     const { llm, store, calls, run, options } = setup([() => good]);
     const result = await llm.generateStructured(schema, "p", options());
-    expect(result).toEqual({ output: good, source: "llm", provider: "google", model: "google-main" });
+    expect(result).toMatchObject({ output: good, source: "llm", provider: "google", model: "google-main" });
     expect(calls).toEqual([{ model: "google-main", prompt: "p" }]);
     expect(store.calls.get(run.id)).toBe(1);
     expect(store.cache.size).toBe(1);
@@ -302,9 +302,9 @@ describe("runToolLoop", () => {
     const fallback = vi.fn(async () => undefined);
     const { llm, store, run } = setup([], {
       callLoop: async ({ onStep }) => {
-        onStep();
-        onStep();
-        onStep();
+        onStep({ ms: 1, toolCalls: 1 });
+        onStep({ ms: 1, toolCalls: 1 });
+        onStep({ ms: 1, toolCalls: 1 });
         return { steps: 3 };
       },
     });
@@ -320,7 +320,7 @@ describe("runToolLoop", () => {
     const { llm } = setup([], {
       callLoop: async ({ stepMs, onStep }) => {
         seen.push(stepMs);
-        onStep();
+        onStep({ ms: 1, toolCalls: 1 });
         return { steps: 1 };
       },
     });
@@ -336,7 +336,7 @@ describe("runToolLoop", () => {
         const id = (model as unknown as { modelId: string }).modelId;
         used.push(id);
         if (id.startsWith("google")) throw apiError(429);
-        onStep();
+        onStep({ ms: 1, toolCalls: 1 });
         return { steps: 1 };
       },
     });
@@ -353,7 +353,7 @@ describe("runToolLoop", () => {
     const { llm, repo, run } = setup([], {
       callLoop: async ({ model, onStep }) => {
         used.push((model as unknown as { modelId: string }).modelId);
-        onStep();
+        onStep({ ms: 1, toolCalls: 1 });
         throw apiError(429);
       },
     });
@@ -417,7 +417,7 @@ describe("thinking limits", () => {
   });
 });
 
-describe("resolveProviders", () => {
+describe("the provider chain", () => {
   const base = {
     DATABASE_URL: "postgres://x",
     LLM_MODE: "live",
@@ -425,6 +425,17 @@ describe("resolveProviders", () => {
     GOOGLE_GENERATIVE_AI_API_KEY: "g-key",
     LLM_MODEL: "gemini-main",
     LLM_MODEL_FAST: "gemini-fast",
+  };
+  const full = {
+    ...base,
+    LLM_FALLBACK_PROVIDERS: "groq,openai-compatible",
+    GROQ_API_KEY: "q-key",
+    GROQ_MODEL: "groq-main",
+    GROQ_MODEL_FAST: "groq-fast",
+    OPENAI_COMPATIBLE_API_KEY: "o-key",
+    OPENAI_COMPATIBLE_BASE_URL: "https://openrouter.ai/api/v1",
+    OPENAI_COMPATIBLE_MODEL: "router-main",
+    OPENAI_COMPATIBLE_MODEL_FAST: "router-fast",
   };
 
   it("builds the main provider with models from the environment", () => {
@@ -436,43 +447,142 @@ describe("resolveProviders", () => {
     expect(notes).toEqual([]);
   });
 
-  it("adds the fallback provider when its key and models are set", () => {
-    const env = parseEnv({
-      ...base,
-      LLM_FALLBACK_PROVIDER: "groq",
-      GROQ_API_KEY: "q-key",
-      LLM_FALLBACK_MODEL: "groq-main",
-      LLM_FALLBACK_MODEL_FAST: "groq-fast",
-    });
-    const { providers } = resolveProviders(env);
-    expect(providers.map((p) => p.name)).toEqual(["google", "groq"]);
+  it("builds a chain of fallbacks in the order listed, each with its own model names", () => {
+    const { providers, notes } = resolveProviders(parseEnv(full));
+    expect(providers.map((p) => [p.name, p.label])).toEqual([
+      ["google", "Gemini"],
+      ["groq", "Groq"],
+      ["openai-compatible", "OpenRouter"],
+    ]);
     expect(providers[1].model("fast")?.id).toBe("groq-fast");
+    expect(providers[2].model("main")?.id).toBe("router-main");
+    expect(notes).toEqual([]);
   });
 
-  it("leaves the fallback out, with a note, when its model names are missing", () => {
-    const { providers, notes } = resolveProviders(parseEnv({ ...base, LLM_FALLBACK_PROVIDER: "groq", GROQ_API_KEY: "q" }));
+  it("keeps the order the developer wrote", () => {
+    const env = parseEnv({ ...full, LLM_FALLBACK_PROVIDERS: " openai-compatible , groq " });
+    expect(resolveProviders(env).providers.map((p) => p.name)).toEqual(["google", "openai-compatible", "groq"]);
+  });
+
+  it("names a non-OpenRouter endpoint plainly", () => {
+    const env = parseEnv({ ...full, OPENAI_COMPATIBLE_BASE_URL: "https://api.example.com/v1" });
+    expect(resolveProviders(env).providers[2].label).toBe("the backup model");
+  });
+
+  it("skips a fallback, with a note, when its model names are missing", () => {
+    const env = parseEnv({ ...base, LLM_FALLBACK_PROVIDERS: "groq", GROQ_API_KEY: "q" });
+    const { providers, notes } = resolveProviders(env);
     expect(providers.map((p) => p.name)).toEqual(["google"]);
-    expect(notes[0]).toMatch(/LLM_FALLBACK_MODEL/);
+    expect(notes).toEqual(["Groq needs its model names set in the environment."]);
   });
 
-  it("leaves the fallback out when it has no key", () => {
-    const { providers, notes } = resolveProviders(
-      parseEnv({ ...base, LLM_FALLBACK_PROVIDER: "groq", LLM_FALLBACK_MODEL: "a", LLM_FALLBACK_MODEL_FAST: "b" }),
-    );
-    expect(providers).toHaveLength(1);
+  it("skips a fallback that has no key, and carries on with the rest of the chain", () => {
+    const env = parseEnv({ ...full, GROQ_API_KEY: "" });
+    const { providers, notes } = resolveProviders(env);
+    expect(providers.map((p) => p.name)).toEqual(["google", "openai-compatible"]);
     expect(notes).toEqual(["Groq has no API key."]);
   });
 
   it("notes providers whose package is not installed", () => {
-    const { providers, notes } = resolveProviders(
-      parseEnv({ ...base, LLM_FALLBACK_PROVIDER: "xai", XAI_API_KEY: "x", LLM_FALLBACK_MODEL: "a", LLM_FALLBACK_MODEL_FAST: "b" }),
-    );
+    const env = parseEnv({ ...base, LLM_FALLBACK_PROVIDERS: "anthropic" });
+    const { providers, notes } = resolveProviders(env);
     expect(providers).toHaveLength(1);
-    expect(notes).toEqual(["Grok is not installed in this build."]);
+    expect(notes).toEqual(["anthropic is not installed in this build."]);
   });
 
-  it("ignores a fallback that is the same as the main provider", () => {
-    const { providers } = resolveProviders(parseEnv({ ...base, LLM_FALLBACK_PROVIDER: "google" }));
+  it("ignores a fallback that repeats the main provider", () => {
+    const { providers } = resolveProviders(parseEnv({ ...base, LLM_FALLBACK_PROVIDERS: "google,google" }));
     expect(providers).toHaveLength(1);
+  });
+
+  it("rejects an unknown provider name, so xAI is not accepted", () => {
+    expect(() => parseEnv({ ...base, LLM_FALLBACK_PROVIDERS: "xai" })).toThrow(/LLM_FALLBACK_PROVIDERS/);
+  });
+
+  it("sets the thinking level for each tier from the environment", () => {
+    const env = parseEnv({ ...base, LLM_THINKING_MAIN: "medium", LLM_THINKING_FAST: "low" });
+    const gemini = resolveProviders(env).providers[0];
+    expect(gemini.model("main")?.providerOptions).toEqual({ google: { thinkingConfig: { thinkingLevel: "medium" } } });
+    expect(gemini.model("fast")?.providerOptions).toEqual({ google: { thinkingConfig: { thinkingLevel: "low" } } });
+  });
+});
+
+describe("timings and rejected keys", () => {
+  it("puts how long each answer took into the trace", async () => {
+    let clock = 1_000;
+    const { llm, repo, options } = setup([() => good], { now: () => clock });
+    // The stub answers instantly, so move the clock inside the call to simulate 2.4 s.
+    const callStructured = async () => {
+      clock += 2400;
+      return good;
+    };
+    const timed = createLlm({
+      mode: "live",
+      providers: [provider("google", "Gemini")],
+      store: createMemoryLlmStore(),
+      now: () => clock,
+      callStructured,
+    });
+    void llm;
+    const result = await timed.generateStructured(schema, "p", options());
+    expect(result.ms).toBe(2400);
+    const line = repo.traces.find((t) => t.message.startsWith("Gemini answered"));
+    expect(line?.message).toBe("Gemini answered in 2.4 s.");
+    expect(line?.data).toMatchObject({ provider: "google", model: "google-main", ms: 2400, key: "design" });
+  });
+
+  it("puts each tool-loop step into the trace with its tool calls and time", async () => {
+    const { llm, repo, run } = setup([], {
+      callLoop: async ({ onStep }) => {
+        onStep({ ms: 2800, toolCalls: 4 });
+        onStep({ ms: 1500, toolCalls: 1 });
+        onStep({ ms: 900, toolCalls: 0 });
+        return { steps: 3 };
+      },
+    });
+    const trace = createTracer(repo, run.id, "scout");
+    await llm.runToolLoop({} as ToolSet, "sys", { runId: run.id, tier: "fast", prompt: "p", maxSteps: 3, fallback: async () => undefined, trace });
+    await Promise.resolve();
+    expect(repo.traces.map((t) => t.message)).toEqual([
+      "Gemini step 1: 4 tool calls in 2.8 s.",
+      "Gemini step 2: 1 tool call in 1.5 s.",
+      "Gemini step 3: no tool calls in 0.9 s.",
+    ]);
+  });
+
+  it("does not ask a provider again after it rejected the key", async () => {
+    const { llm, calls, repo, options } = setup(
+      [
+        () => {
+          throw apiError(401);
+        },
+        () => good,
+        () => good,
+      ],
+      { providers: [provider("google", "Gemini"), provider("groq", "Groq")] },
+    );
+    const first = await llm.generateStructured(schema, "p", options({ cacheKey: "one" }));
+    const second = await llm.generateStructured(schema, "p", options({ cacheKey: "two" }));
+    expect(first.provider).toBe("groq");
+    expect(second.provider).toBe("groq");
+    expect(calls.map((c) => c.model)).toEqual(["google-main", "groq-main", "groq-main"]);
+    expect(warnings(repo)).toEqual(["Gemini did not accept our key. Trying Groq."]);
+  });
+
+  it("skips a rejected provider in the tool loop too", async () => {
+    const used: string[] = [];
+    const { llm } = setup([], {
+      callLoop: async ({ model, onStep }) => {
+        const id = (model as unknown as { modelId: string }).modelId;
+        used.push(id);
+        if (id.startsWith("google")) throw apiError(403);
+        onStep({ ms: 1, toolCalls: 1 });
+        return { steps: 1 };
+      },
+    });
+    const loop = (fallback: () => Promise<void>) => ({ runId: "r", tier: "fast" as const, prompt: "p", maxSteps: 3, fallback });
+    await llm.runToolLoop({} as ToolSet, "sys", loop(async () => undefined));
+    await llm.runToolLoop({} as ToolSet, "sys", loop(async () => undefined));
+    expect(used).toEqual(["google-fast", "groq-fast", "groq-fast"]);
   });
 });

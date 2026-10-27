@@ -21,7 +21,7 @@ import type { Tracer } from "./trace";
 
 export type LlmSource = "cache" | "llm" | "mock" | "fallback";
 
-export type StructuredResult<T> = { output: T; source: LlmSource; provider?: string; model?: string };
+export type StructuredResult<T> = { output: T; source: LlmSource; provider?: string; model?: string; ms?: number };
 
 export type StructuredOptions<T> = {
   runId: string;
@@ -75,7 +75,8 @@ type LoopCall = (args: {
   maxSteps: number;
   signal: AbortSignal;
   stepMs: number;
-  onStep: () => void;
+  // Called after each model step with how long it took and how many tool calls it asked for.
+  onStep: (info: { ms: number; toolCalls: number }) => void;
   providerOptions?: CallProviderOptions;
 }) => Promise<{ steps: number }>;
 
@@ -158,6 +159,7 @@ const defaultLoop: LoopCall = async ({
   onStep,
   providerOptions,
 }) => {
+  let lastStepEnd = Date.now();
   const result = await generateText({
     model,
     system,
@@ -168,7 +170,11 @@ const defaultLoop: LoopCall = async ({
     abortSignal: signal,
     timeout: { stepMs },
     providerOptions,
-    onStepFinish: () => onStep(),
+    onStepFinish: (step) => {
+      const finished = Date.now();
+      onStep({ ms: finished - lastStepEnd, toolCalls: step.toolCalls.length });
+      lastStepEnd = finished;
+    },
   });
   return { steps: result.steps.length };
 };
@@ -180,6 +186,9 @@ export function createLlm(deps: LlmDeps) {
   const backoffMs = deps.backoffMs ?? [2000, 6000];
   const callStructured = deps.callStructured ?? defaultStructured;
   const callLoop = deps.callLoop ?? defaultLoop;
+  // A provider that rejected our key will reject it again, so it is skipped for the rest of the process.
+  const rejectedKeys = new Set<string>();
+  const usableProviders = () => deps.providers.filter((p) => !rejectedKeys.has(p.name));
 
   // Asks one provider, with backoff on rate limits and one retry when the answer is rejected.
   async function askProvider<T>(
@@ -188,7 +197,7 @@ export function createLlm(deps: LlmDeps) {
     prompt: string,
     opts: StructuredOptions<T>,
     deadline: number,
-  ): Promise<{ output: T; model: string }> {
+  ): Promise<{ output: T; model: string; ms: number }> {
     const handle = entry.model(opts.tier);
     if (!handle) throw new ProviderFailed(`no model is set for ${entry.label}`);
 
@@ -201,6 +210,7 @@ export function createLlm(deps: LlmDeps) {
       if (remaining <= 0) throw new ProviderFailed("ran out of time");
 
       await deps.store.countCall(opts.runId).catch(() => undefined);
+      const started = now();
       try {
         const raw = await callStructured({
           model: handle.model,
@@ -218,10 +228,13 @@ export function createLlm(deps: LlmDeps) {
         } catch (e) {
           throw new AnswerRejected(e instanceof Error ? e.message : String(e));
         }
-        return { output: parsed.data, model: handle.id };
+        return { output: parsed.data, model: handle.id, ms: now() - started };
       } catch (error) {
         if (isTimeout(error)) throw new ProviderFailed("took too long");
-        if (isRejectedKey(error)) throw new ProviderFailed("did not accept our key");
+        if (isRejectedKey(error)) {
+          rejectedKeys.add(entry.name);
+          throw new ProviderFailed("did not accept our key");
+        }
 
         if (isBusy(error)) {
           const delay = backoffMs[busyRetries];
@@ -262,14 +275,16 @@ export function createLlm(deps: LlmDeps) {
 
     // 3. Main provider, then the fallback provider, all inside one time budget.
     const deadline = now() + budgetMs;
-    for (const [index, entry] of deps.providers.entries()) {
+    const chain = usableProviders();
+    for (const [index, entry] of chain.entries()) {
       try {
-        const { output, model } = await askProvider(entry, schema, prompt, opts, deadline);
+        const { output, model, ms } = await askProvider(entry, schema, prompt, opts, deadline);
         await deps.store.set(opts.runId, opts.cacheKey, { output, provider: entry.name, model }).catch(() => undefined);
-        return { output, source: "llm", provider: entry.name, model };
+        await opts.trace?.info(`${entry.label} answered in ${(ms / 1000).toFixed(1)} s.`, { provider: entry.name, model, ms, key: opts.cacheKey });
+        return { output, source: "llm", provider: entry.name, model, ms };
       } catch (error) {
         if (!(error instanceof ProviderFailed)) throw error;
-        const next = deps.providers[index + 1];
+        const next = chain[index + 1];
         await opts.trace?.warn(
           `${entry.label} ${error.message}.${next ? ` Trying ${next.label}.` : ""}`,
           { provider: entry.name, detail: error.detail },
@@ -291,7 +306,8 @@ export function createLlm(deps: LlmDeps) {
     }
 
     const deadline = now() + (opts.budgetMs ?? 30_000);
-    for (const [index, entry] of deps.providers.entries()) {
+    const chain = usableProviders();
+    for (const [index, entry] of chain.entries()) {
       const handle = entry.model(opts.tier);
       if (!handle) continue;
       let steps = 0;
@@ -305,13 +321,22 @@ export function createLlm(deps: LlmDeps) {
           signal: AbortSignal.timeout(Math.max(1, deadline - now())),
           stepMs: opts.stepMs ?? 15_000,
           providerOptions: handle.providerOptions,
-          onStep: () => {
+          onStep: ({ ms, toolCalls }) => {
             steps += 1;
             void deps.store.countCall(opts.runId).catch(() => undefined);
+            const calls = toolCalls === 0 ? "no tool calls" : `${toolCalls} tool call${toolCalls === 1 ? "" : "s"}`;
+            void opts.trace?.info(`${entry.label} step ${steps}: ${calls} in ${(ms / 1000).toFixed(1)} s.`, {
+              provider: entry.name,
+              model: handle.id,
+              step: steps,
+              toolCalls,
+              ms,
+            });
           },
         });
         return { source: "llm", steps, provider: entry.name, model: handle.id };
       } catch (error) {
+        if (isRejectedKey(error)) rejectedKeys.add(entry.name);
         const reason = isTimeout(error)
           ? "took too long"
           : isRejectedKey(error)
@@ -323,7 +348,7 @@ export function createLlm(deps: LlmDeps) {
         if (steps === 0) await deps.store.countCall(opts.runId).catch(() => undefined);
 
         // Tools already ran, so another model would repeat work. Let the deterministic plan finish instead.
-        const next = steps === 0 ? deps.providers[index + 1] : undefined;
+        const next = steps === 0 ? chain[index + 1] : undefined;
         await opts.trace?.warn(`${entry.label} ${reason}.${next ? ` Trying ${next.label}.` : ""}`, {
           provider: entry.name,
           steps,

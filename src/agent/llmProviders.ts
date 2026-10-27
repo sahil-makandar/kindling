@@ -1,10 +1,13 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { generateText, LanguageModel } from "ai";
 import type { Env, LlmProvider } from "@/src/config/env";
 
-// Builds the ordered list of language model providers from the environment: the main provider first, then
-// the optional fallback. Model names always come from the environment, never from code.
+// Builds the ordered chain of language model providers from the environment: the main provider first, then each
+// fallback in the order listed in LLM_FALLBACK_PROVIDERS. Model names always come from the environment, never
+// from code: LLM_MODEL and LLM_MODEL_FAST for the main provider, and <PROVIDER>_MODEL and <PROVIDER>_MODEL_FAST
+// for each fallback.
 
 export type LlmTier = "main" | "fast";
 
@@ -20,59 +23,78 @@ export type ProviderEntry = {
   model(tier: LlmTier): ModelHandle | null;
 };
 
-const LABELS: Record<LlmProvider, string> = {
-  google: "Gemini",
-  groq: "Groq",
-  xai: "Grok",
-  "openai-compatible": "the backup model",
-  anthropic: "Claude",
-};
-
 type Models = { main?: string; fast?: string };
 
-// Only the providers we hold keys for are installed. The others are accepted by the env schema so a
-// provider can be added later, but until its package is installed it is skipped with a note.
-function build(name: LlmProvider, env: Env, models: Models): ProviderEntry | { skipped: string } {
+function modelsFor(name: LlmProvider, env: Env): Models {
+  if (name === env.LLM_PROVIDER) return { main: env.LLM_MODEL, fast: env.LLM_MODEL_FAST };
+  switch (name) {
+    case "google":
+      return { main: env.GOOGLE_MODEL, fast: env.GOOGLE_MODEL_FAST };
+    case "groq":
+      return { main: env.GROQ_MODEL, fast: env.GROQ_MODEL_FAST };
+    case "openai-compatible":
+      return { main: env.OPENAI_COMPATIBLE_MODEL, fast: env.OPENAI_COMPATIBLE_MODEL_FAST };
+    default:
+      return {};
+  }
+}
+
+// OpenRouter is the usual OpenAI-compatible endpoint here, so name it properly in the trace.
+function compatibleLabel(baseUrl: string): string {
+  return baseUrl.includes("openrouter.ai") ? "OpenRouter" : "the backup model";
+}
+
+// Only the providers we hold keys for are installed. Anything else is accepted by the env schema so a provider
+// can be added later, but until its package is installed it is skipped with a note.
+function build(name: LlmProvider, env: Env): ProviderEntry | { skipped: string } {
+  const models = modelsFor(name, env);
   const handle =
     (create: (id: string) => LanguageModel, options?: (tier: LlmTier) => CallProviderOptions) => (tier: LlmTier) => {
       const id = tier === "main" ? models.main : models.fast;
       return id ? { id, model: create(id), providerOptions: options?.(tier) } : null;
     };
+  const missingModels = !models.main || !models.fast;
+  const needModels = (label: string) => ({ skipped: `${label} needs its model names set in the environment.` });
 
-  if (name === "google" && env.GOOGLE_GENERATIVE_AI_API_KEY) {
+  if (name === "google") {
+    if (!env.GOOGLE_GENERATIVE_AI_API_KEY) return { skipped: "Gemini has no API key." };
+    if (missingModels) return needModels("Gemini");
     const google = createGoogleGenerativeAI({ apiKey: env.GOOGLE_GENERATIVE_AI_API_KEY });
-    // Gemini 3 models think before answering, and left alone the main model took 34 s for a one-line answer.
-    // Agent routes must finish in 60 s, so cap the thinking: a little for the main model, almost none for the fast one.
+    // Gemini 3 models think before answering, and left alone a model took 34 s for a one-line answer. Agent routes
+    // must finish in 60 s, so the thinking level is capped (and set per tier in the environment).
     const thinking = (tier: LlmTier): CallProviderOptions => ({
-      google: { thinkingConfig: { thinkingLevel: tier === "main" ? "low" : "minimal" } },
+      google: { thinkingConfig: { thinkingLevel: tier === "main" ? env.LLM_THINKING_MAIN : env.LLM_THINKING_FAST } },
     });
-    return { name, label: LABELS[name], model: handle((id) => google(id), thinking) };
+    return { name, label: "Gemini", model: handle((id) => google(id), thinking) };
   }
-  if (name === "groq" && env.GROQ_API_KEY) {
+  if (name === "groq") {
+    if (!env.GROQ_API_KEY) return { skipped: "Groq has no API key." };
+    if (missingModels) return needModels("Groq");
     const groq = createGroq({ apiKey: env.GROQ_API_KEY });
-    return { name, label: LABELS[name], model: handle((id) => groq(id)) };
+    return { name, label: "Groq", model: handle((id) => groq(id)) };
   }
-  if (name === "google" || name === "groq") return { skipped: `${LABELS[name]} has no API key.` };
-  return { skipped: `${LABELS[name]} is not installed in this build.` };
+  if (name === "openai-compatible") {
+    if (!env.OPENAI_COMPATIBLE_API_KEY || !env.OPENAI_COMPATIBLE_BASE_URL) return { skipped: "The OpenAI-compatible endpoint has no key or URL." };
+    if (missingModels) return needModels("The OpenAI-compatible endpoint");
+    const compatible = createOpenAICompatible({
+      name: "openai-compatible",
+      baseURL: env.OPENAI_COMPATIBLE_BASE_URL,
+      apiKey: env.OPENAI_COMPATIBLE_API_KEY,
+      supportsStructuredOutputs: true,
+    });
+    return { name, label: compatibleLabel(env.OPENAI_COMPATIBLE_BASE_URL), model: handle((id) => compatible(id)) };
+  }
+  return { skipped: `${name} is not installed in this build.` };
 }
 
 export function resolveProviders(env: Env): { providers: ProviderEntry[]; notes: string[] } {
   const providers: ProviderEntry[] = [];
   const notes: string[] = [];
-
-  const main = build(env.LLM_PROVIDER, env, { main: env.LLM_MODEL, fast: env.LLM_MODEL_FAST });
-  if ("skipped" in main) notes.push(main.skipped);
-  else providers.push(main);
-
-  const fallbackName = env.LLM_FALLBACK_PROVIDER;
-  if (fallbackName && fallbackName !== env.LLM_PROVIDER) {
-    if (!env.LLM_FALLBACK_MODEL || !env.LLM_FALLBACK_MODEL_FAST) {
-      notes.push("The fallback provider needs LLM_FALLBACK_MODEL and LLM_FALLBACK_MODEL_FAST.");
-    } else {
-      const fallback = build(fallbackName, env, { main: env.LLM_FALLBACK_MODEL, fast: env.LLM_FALLBACK_MODEL_FAST });
-      if ("skipped" in fallback) notes.push(fallback.skipped);
-      else providers.push(fallback);
-    }
+  const chain = [env.LLM_PROVIDER, ...env.LLM_FALLBACK_PROVIDERS];
+  for (const name of new Set(chain)) {
+    const entry = build(name, env);
+    if ("skipped" in entry) notes.push(entry.skipped);
+    else providers.push(entry);
   }
   return { providers, notes };
 }

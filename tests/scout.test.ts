@@ -1,3 +1,4 @@
+import { scoutBriefing, scoutSystemPrompt } from "@/src/agent/prompts/scout";
 import { APICallError, type LanguageModel, type ToolSet } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { z } from "zod";
@@ -8,7 +9,7 @@ import { createMemoryRunRepo } from "@/src/agent/runRepo";
 import { createTracer } from "@/src/agent/trace";
 import { buildLadder, DOMAIN_LABEL, planFor, SCOUT_DOMAINS } from "@/src/agent/scout/plan";
 import { compactEntities, SignalPool, strongestLine, type PoolSignal } from "@/src/agent/scout/pool";
-import { MAX_QLOO_CALLS, runDeterministicPlan, ScoutRun, type ScoutApi, type ScoutVenue } from "@/src/agent/scout/scout";
+import { MAX_QLOO_CALLS, planGaps, runDeterministicPlan, ScoutRun, type ScoutApi, type ScoutVenue } from "@/src/agent/scout/scout";
 import { createScoutStage } from "@/src/agent/scout/stage";
 import { buildScoutTools } from "@/src/agent/scout/tools";
 import { QlooError, createQlooClient } from "@/src/qloo/client";
@@ -658,7 +659,8 @@ describe("Scout stage", () => {
     const { stage, run, trace, store, messages } = stageSetup("soho", { runToolLoop: script });
     await stage({ run, trace });
 
-    expect(store.calls.map((c) => c.purpose)).toEqual([
+    // The first six calls are the ones the model chose, in its order. The standard plan then adds the rest.
+    expect(store.calls.slice(0, 6).map((c) => c.purpose)).toEqual([
       "scout.area_entities",
       "scout.area_entities",
       "scout.trending",
@@ -668,8 +670,10 @@ describe("Scout stage", () => {
     ]);
     expect(messages()).toContain("Next: read the area's distinctive taste in books. In the Mood for Love leads film, so check whether books follow.");
     expect(messages()).toContain("Next: check what is rising in film. See whether In the Mood for Love is still rising.");
-    // The model finished properly, so the standard plan did not run on top.
+    // The model finished properly, so this is a fill-in, not a rescue.
     expect(messages().some((m) => m.startsWith("Not enough yet"))).toBe(false);
+    expect(messages().some((m) => m.startsWith("Adding what the standard plan still covers"))).toBe(true);
+    expect(store.calls.length).toBeLessThanOrEqual(16);
     expect(messages().filter((m) => m.startsWith("Scouting done"))).toHaveLength(1);
   });
 
@@ -681,7 +685,7 @@ describe("Scout stage", () => {
     };
     const { stage, run, trace, messages, saved, store } = stageSetup("east_austin", { runToolLoop: lazy });
     await stage({ run, trace });
-    expect(messages().some((m) => m.startsWith("Not enough yet (") && m.endsWith("so I am finishing with the standard plan."))).toBe(true);
+    expect(messages().some((m) => m.startsWith("Not enough yet (") && m.includes("so I am finishing with the standard plan:"))).toBe(true);
     const signals = saved[0];
     expect(new Set(signals.filter((s) => s.kind === "entity" && s.appearances.area).map((s) => s.domain)).size).toBeGreaterThanOrEqual(4);
     expect(signals.some((s) => s.kind === "tag")).toBe(true);
@@ -699,9 +703,9 @@ describe("Scout stage", () => {
       sleep: async () => undefined,
       callLoop: async ({ tools, onStep }) => {
         await exec(tools, "scan_area", { domain: "movie", reason: "Film first" });
-        onStep();
+        onStep({ ms: 1, toolCalls: 1 });
         await exec(tools, "scan_area", { domain: "book", reason: "Books next" });
-        onStep();
+        onStep({ ms: 1, toolCalls: 1 });
         throw new APICallError({ message: "busy", url: "https://x", requestBodyValues: {}, statusCode: 429 });
       },
     });
@@ -879,5 +883,90 @@ describe("Scout stage and the clock", () => {
     const { stage, run, trace, saved } = stageSetup("soho", { runToolLoop: script, now: () => clock });
     await expect(stage({ run, trace })).rejects.toThrow("Qloo has too little taste data around this address");
     expect(saved).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------- filling in after the model
+
+describe("filling in what the standard plan covers", () => {
+  it("lists what is left of the plan, and nothing once the plan has run", async () => {
+    const { scout } = fixtureSetup(VENUES.williamsburg);
+    expect(planGaps(scout)).toEqual([
+      "film, books, music, TV, podcasts for the area",
+      "nearby places",
+      "venues like yours",
+      "the area's tags",
+    ]);
+    await runDeterministicPlan(scout);
+    expect(planGaps(scout)).toEqual([]);
+  });
+
+  it("does not ask for venues like yours when the venue is not in Qloo", () => {
+    const { scout } = fixtureSetup(VENUES.soho);
+    expect(planGaps(scout)).not.toContain("venues like yours");
+  });
+
+  it("after a model that did the minimum, says what it is adding and covers trends, similar venues and mainstream picks", async () => {
+    const minimal: Parameters<typeof createScoutStage>[0]["runToolLoop"] = async (tools) => {
+      for (const domain of ["movie", "book", "artist", "podcast"]) await exec(tools, "scan_area", { domain, reason: "batch" });
+      await exec(tools, "scan_area_tags", { reason: "vocabulary" });
+      await exec(tools, "scan_nearby_places", { reason: "scene" });
+      const done = (await exec(tools, "finish", { summary: "enough" })) as { ok: boolean };
+      expect(done.ok).toBe(true);
+      return { source: "llm", steps: 3 };
+    };
+    const { stage, run, trace, messages, store } = stageSetup("williamsburg", { runToolLoop: minimal });
+    await stage({ run, trace });
+    expect(messages().some((m) => m.startsWith("Adding what the standard plan still covers, so the next step has more to work with: "))).toBe(true);
+    const purposes = new Set(store.calls.map((c) => c.purpose));
+    expect(purposes.has("scout.trending")).toBe(true);
+    expect(purposes.has("scout.similar_venues")).toBe(true);
+    expect(store.calls.some((c) => c.params["filter.popularity.max"] === undefined && c.purpose === "scout.area_entities")).toBe(true);
+    expect(store.calls.length).toBeLessThanOrEqual(16);
+  });
+
+  it("adds nothing when the plan is already complete", async () => {
+    const full: Parameters<typeof createScoutStage>[0]["runToolLoop"] = async () => ({ source: "llm", steps: 0 });
+    const { stage, run, trace, messages } = stageSetup("soho", { runToolLoop: full });
+    // The standard plan runs once (as the top-up), so a second stage run finds nothing left to add.
+    await stage({ run, trace });
+    expect(messages().some((m) => m.startsWith("Not enough yet ("))).toBe(true);
+  });
+
+  it("does not start filling in once time is up", async () => {
+    let clock = 0;
+    const slow: Parameters<typeof createScoutStage>[0]["runToolLoop"] = async (tools) => {
+      await exec(tools, "scan_area", { domain: "movie", reason: "one" });
+      await exec(tools, "scan_area", { domain: "book", reason: "two" });
+      await exec(tools, "scan_area", { domain: "artist", reason: "three" });
+      clock = 60_000;
+      return { source: "llm", steps: 1 };
+    };
+    const { stage, run, trace, messages, store } = stageSetup("soho", { runToolLoop: slow, now: () => clock });
+    await stage({ run, trace });
+    expect(messages().some((m) => m.startsWith("Adding what") || m.startsWith("Not enough yet"))).toBe(false);
+    expect(store.calls).toHaveLength(3);
+  });
+});
+
+describe("the Scout's prompts", () => {
+  it("asks for specific reasons and at most three steps", () => {
+    const text = scoutSystemPrompt({ budget: 16, venueType: "bookstore" });
+    expect(text).toMatch(/at most 3 steps/);
+    expect(text).toMatch(/one-sentence reason that is specific/);
+    expect(text).toMatch(/Plan in batches/);
+    expect(text).not.toMatch(/video/i);
+  });
+
+  it("tells the model the venue's own tags and whether similar venues will work", () => {
+    const withTags = scoutBriefing({
+      venue: { ...VENUES.williamsburg, tags: [{ id: "a", name: "Book store" }, { id: "b", name: "Event venue" }] },
+      radiusSteps: ["within 500 m", "within 1 km"],
+    });
+    expect(withTags).toContain("The venue's own Qloo tags: Book store, Event venue.");
+    expect(withTags).toContain("scan_similar_venues works");
+    const without = scoutBriefing({ venue: VENUES.soho, radiusSteps: ["within 500 m"] });
+    expect(without).toContain("The venue has no tags on Qloo.");
+    expect(without).toContain("scan_similar_venues will be refused");
   });
 });

@@ -5,10 +5,11 @@ import { scoutBriefing, scoutSystemPrompt } from "../prompts/scout";
 import type { StageFn } from "../runStage";
 import { DOMAIN_LABEL, type ScoutDomain } from "./plan";
 import type { PoolSignal } from "./pool";
-import { MAX_QLOO_CALLS, runDeterministicPlan, ScoutRun, type ScoutApi, type ScoutVenue } from "./scout";
+import { MAX_QLOO_CALLS, planGaps, runDeterministicPlan, ScoutRun, type ScoutApi, type ScoutVenue } from "./scout";
 import { buildScoutTools } from "./tools";
 
-export const MAX_SCOUT_STEPS = 8;
+// The model plans a batch of 3 to 4 scans per step, then adapts to what it found: at most 3 steps in all.
+export const MAX_SCOUT_STEPS = 3;
 // The model gets 25 s, so the standard plan still has time to finish inside the 60 s route limit.
 const SCOUT_MODEL_BUDGET_MS = 25_000;
 // After this long the Scout stops starting new scans and finishes with what it has.
@@ -75,9 +76,16 @@ export function createScoutStage(deps: ScoutDeps): StageFn {
         fallback: () => runDeterministicPlan(scout),
       });
 
-      // A model that stops early gets topped up by the standard plan, which skips what is already done.
-      if (!scout.isEnough() && scout.callsLeft > 0) {
-        await trace.info(`Not enough yet (${scout.missing().join("; ")}), so I am finishing with the standard plan.`);
+      // Whatever the model chose, the standard plan then fills in what is missing, skipping what is already done.
+      // The Designer works better with a full pool (every domain, trends, similar venues, the mainstream picks).
+      const gaps = planGaps(scout);
+      if (gaps.length > 0 && scout.callsLeft > 0 && !scout.timeUp) {
+        await trace.info(
+          scout.isEnough()
+            ? `Adding what the standard plan still covers, so the next step has more to work with: ${gaps.join(", ")}.`
+            : `Not enough yet (${scout.missing().join("; ")}), so I am finishing with the standard plan: ${gaps.join(", ")}.`,
+        );
+        scout.resume();
         await runDeterministicPlan(scout);
       }
     } finally {
