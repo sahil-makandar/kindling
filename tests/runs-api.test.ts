@@ -191,3 +191,47 @@ describe("landing presets", () => {
     }
   });
 });
+
+describe("evidence wording", () => {
+  it("describes call parameters in words and hides nothing that is a secret by never expecting one", async () => {
+    const { describeParams, resultsLabel, statusLabel } = await import("@/src/runs/evidence");
+    expect(
+      describeParams({ "filter.type": "urn:entity:movie", "signal.location": "POINT(-73.9973 40.7246)", "signal.location.radius": 500, "signal.interests.entities": "a,b,c", take: 20 }),
+    ).toEqual([
+      { label: "Looking for", value: "movie" },
+      { label: "Around", value: "40.7246, -73.9973" },
+      { label: "Radius", value: "500 m" },
+      { label: "Starting from", value: "3 entities" },
+      { label: "Results asked for", value: "20" },
+    ]);
+    expect(describeParams({ "signal.interests.entities": "x" })[0].value).toBe("1 entity");
+    expect(describeParams({ mystery: "z".repeat(200) })[0].value).toHaveLength(80);
+    expect(describeParams(null)).toEqual([]);
+    expect(statusLabel(200)).toEqual({ text: "200 OK", ok: true });
+    expect(statusLabel(403).ok).toBe(false);
+    expect(resultsLabel(1)).toBe("1 result");
+    expect(resultsLabel(0)).toBe("0 results");
+    expect(resultsLabel(null)).toBe("no count");
+  });
+});
+
+describe("createClub", () => {
+  it("makes a club from a pick, and gives the same club back for the same pick", async () => {
+    const { createClub } = await import("@/src/clubs/createClub");
+    const inserted: string[] = [];
+    const repo = {
+      loadCandidate: async (id: string) => (id === "123e4567-e89b-12d3-a456-426614174000" ? { title: "Ghibli Night", runId: "r", venueId: "v" } : null),
+      findByCandidate: async () => (inserted.length ? "club-1" : null),
+      insert: async (row: { title: string }) => {
+        inserted.push(row.title);
+        return "club-1";
+      },
+    };
+    const id = { candidateId: "123e4567-e89b-12d3-a456-426614174000" };
+    expect(await createClub(id, repo)).toEqual({ clubId: "club-1", created: true });
+    expect(await createClub(id, repo)).toEqual({ clubId: "club-1", created: false });
+    expect(inserted).toEqual(["Ghibli Night"]);
+    await expect(createClub({ candidateId: "123e4567-e89b-12d3-a456-426614174999" }, repo)).rejects.toMatchObject({ status: 404 });
+    await expect(createClub({ candidateId: "nope" }, repo)).rejects.toBeInstanceOf(ZodError);
+  });
+});

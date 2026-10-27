@@ -2,6 +2,7 @@ import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/src/db/client";
 import { baselines, candidates, llmOutputs, qlooCalls, runs, traceEvents, venues } from "@/src/db/schema";
 import type { RunStage, TraceLevel } from "@/src/db/schema";
+import type { PoolRef } from "@/src/agent/designer/candidates";
 import type { Breakdown, ComponentName } from "@/src/scoring/clubScore";
 import { COMPONENTS } from "@/src/scoring/clubScore";
 
@@ -122,8 +123,8 @@ export type CandidateView = {
   title: string;
   format: string;
   why: string;
-  anchor: unknown;
-  companions: unknown;
+  anchor: PoolRef;
+  companions: PoolRef[];
   score: number | null;
   verified: boolean;
   components: ComponentView[];
@@ -171,7 +172,7 @@ export function shapeCandidates(
         },
       ];
     });
-    return { id: row.id, rank: row.rank, title: row.title, format: row.format, why: row.why, anchor: row.anchor, companions: row.companions, score: row.score, verified: row.verified, components };
+    return { id: row.id, rank: row.rank, title: row.title, format: row.format, why: row.why, anchor: row.anchor as PoolRef, companions: row.companions as PoolRef[], score: row.score, verified: row.verified, components };
   });
   return { candidates: shaped, heat };
 }
