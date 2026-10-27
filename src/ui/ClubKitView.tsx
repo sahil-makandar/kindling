@@ -228,7 +228,7 @@ export function ClubKitView({ club, kit, qr, checkInUrl }: { club: ClubView; kit
   return (
     <div className="flex flex-col gap-6">
       {club.qlooMode === "fixtures" && (
-        <Banner variant="fixture" className="no-print -mx-4 sm:-mx-6">
+        <Banner variant="fixture" className="no-print">
           Sample data mode: this club was built from hand-written examples, not the live Qloo API.
         </Banner>
       )}

@@ -151,7 +151,7 @@ export function PicksView({ data }: { data: CandidatesView }) {
   return (
     <div className="flex flex-col gap-10">
       {data.run.qlooMode === "fixtures" && (
-        <Banner variant="fixture" className="-mx-4 sm:-mx-6">
+        <Banner variant="fixture">
           Sample data mode: these picks come from hand-written examples, not the live Qloo API.
         </Banner>
       )}

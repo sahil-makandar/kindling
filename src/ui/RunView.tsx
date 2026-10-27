@@ -192,7 +192,7 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
   return (
     <div className="flex flex-col gap-6">
       {run.qlooMode === "fixtures" && (
-        <Banner variant="fixture" className="-mx-4 sm:-mx-6">
+        <Banner variant="fixture">
           Sample data mode: Qloo answers come from hand-written examples, not the live API.
         </Banner>
       )}
