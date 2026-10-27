@@ -75,7 +75,7 @@ function PrintAndDownload({ fileName }: { fileName: string }) {
 }
 
 export function ClubKitView({ club, kit, qr, checkInUrl }: { club: ClubView; kit: ClubKit; qr: string; checkInUrl: string | null }) {
-  const first = club.sessions[0] ?? null;
+  const first = [...club.sessions].reverse().find((s) => s.status === "open") ?? club.sessions.at(-1) ?? null;
   const loves = [club.anchor, ...club.companions].filter((r): r is NonNullable<typeof r> => r !== null).map((r) => r.name);
   const picks = [club.anchor, ...club.companions].filter((r): r is NonNullable<typeof r> => r !== null);
   const sessionLine = first ? `Next session: ${longDate(first.date)}, ${kit.night.split(",")[1]?.trim() ?? ""}` : null;

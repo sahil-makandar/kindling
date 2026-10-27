@@ -14,7 +14,7 @@
     "check": "npm run typecheck && npm run lint && npm run lint:copy && npm test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed-demo": "node -e \"console.log('db:seed-demo: not yet')\"",
+    "db:seed-demo": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/seed-demo.ts",
     "qloo:spike": "tsx --env-file=.env.local scripts/qloo-spike.ts",
     "lint:copy": "tsx scripts/lint-copy.ts",
     "db:smoke": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/db-smoke.ts"

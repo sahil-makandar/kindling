@@ -114,32 +114,40 @@ export async function areaTags(
 }
 
 // A taste vector for one guest (their favourites), or for a whole room (everyone's favourites, for the Coach).
-// The fallback uses the favourites' own tags: pass them in when already known (they came with the search
-// results at check-in), otherwise they are fetched from /entities.
+// By default it reads the favourites' own tags (genres, themes, styles) with /entities, or from entities already in
+// hand. Live check (2026-10-27): the urn:tag insight for a set of favourites mixes in place and price tags such as
+// "Four Star" and "Inexpensive", which would seat people by noise, so it is opt-in with prefer: "insights".
 export async function tagsForFavourites(
   api: TagApi,
-  args: { favouriteIds: string[]; knownEntities?: QlooEntity[]; take?: number },
+  args: { favouriteIds: string[]; knownEntities?: QlooEntity[]; take?: number; prefer?: "own" | "insights" },
   ctx: QlooContext,
 ): Promise<TagResult> {
   const take = args.take ?? 25;
-  const primary = await tryUnlisted(
-    TAG_TYPE,
-    () => api.insightsTags({ signalEntities: args.favouriteIds, take }, ctx),
-    "a taste profile",
-  );
-  if ("ok" in primary) {
-    return {
-      tags: primary.ok.items,
-      source: "qloo_tags",
-      warnings: primary.ok.warnings,
-      callId: primary.ok.callId,
-      qlooCalls: 1,
-    };
+  let attempted = 0;
+  let reason: string | undefined;
+
+  if (args.prefer === "insights") {
+    const primary = await tryUnlisted(
+      TAG_TYPE,
+      () => api.insightsTags({ signalEntities: args.favouriteIds, take }, ctx),
+      "a taste profile",
+    );
+    if ("ok" in primary) {
+      return {
+        tags: primary.ok.items,
+        source: "qloo_tags",
+        warnings: primary.ok.warnings,
+        callId: primary.ok.callId,
+        qlooCalls: 1,
+      };
+    }
+    attempted = primary.attempted ? 1 : 0;
+    reason = `${primary.reason} Using the favourites' own tags instead.`;
   }
 
   let entities = args.knownEntities;
   let callId: string | null = null;
-  let qlooCalls = primary.attempted ? 1 : 0;
+  let qlooCalls = attempted;
   const warnings: string[] = [];
   if (!entities || entities.length === 0) {
     const fetched = await api.getEntities(args.favouriteIds, ctx);
@@ -151,7 +159,7 @@ export async function tagsForFavourites(
   return {
     tags: tagsFromEntities(entities, "count", take),
     source: "entity_tags",
-    fallbackReason: `${primary.reason} Using the favourites' own tags instead.`,
+    ...(reason ? { fallbackReason: reason } : {}),
     warnings,
     callId,
     qlooCalls,

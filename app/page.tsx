@@ -1,3 +1,4 @@
+import { Button } from "@/src/ui/Button";
 import { LandingForm } from "@/src/ui/LandingForm";
 
 const STEPS = [
@@ -16,6 +17,12 @@ export default function Home() {
             Tell us where your venue is. Kindling reads what your neighbours really love, designs a weekly night around it, and seats strangers by shared taste.
           </p>
           <p className="max-w-[56ch] text-ink-soft">Takes about two minutes. No sign-up. Kindling plans for the night you tell us is slowest.</p>
+          <div className="flex flex-col items-start gap-2">
+            <Button href="/demo" variant="secondary">
+              See a demo venue
+            </Button>
+            <p className="text-sm text-ink-soft">A fictional venue with four simulated weeks, so you can see the weekly loop without waiting a month.</p>
+          </div>
         </div>
         <LandingForm />
       </section>

@@ -161,9 +161,9 @@ describe("tagsForFavourites", () => {
       throw new QlooError("Qloo does not allow this kind of request with our key (status 403).", 403);
     });
 
-  it("uses Qloo's taste profile when it works", async () => {
+  it("uses Qloo's taste profile when asked to and it works", async () => {
     const insightsTags = vi.fn(async () => result([tag("q1"), tag("q2")]));
-    const out = await tagsForFavourites({ insightsTags, getEntities: vi.fn() } as unknown as Endpoints, { favouriteIds: ["a", "b"] }, ctx);
+    const out = await tagsForFavourites({ insightsTags, getEntities: vi.fn() } as unknown as Endpoints, { favouriteIds: ["a", "b"], prefer: "insights" }, ctx);
     expect(out.source).toBe("qloo_tags");
     expect(insightsTags).toHaveBeenCalledWith({ signalEntities: ["a", "b"], take: 25 }, ctx);
   });
@@ -179,7 +179,21 @@ describe("tagsForFavourites", () => {
     expect(out.tags[0]).toMatchObject({ id: "jp", affinity: 1 });
     expect(out.callId).toBeNull();
     expect(getEntities).not.toHaveBeenCalled();
+    expect(out.fallbackReason).toBeUndefined();
+  });
+
+  it("falls back to the favourites' own tags, with the reason, when the taste profile is refused", async () => {
+    const getEntities = vi.fn(async () => result([entity("a", ["jp"])], { endpoint: "/entities", callId: "e2" }));
+    const out = await tagsForFavourites({ insightsTags: forbidden(), getEntities } as unknown as Endpoints, { favouriteIds: ["a"], prefer: "insights" }, { purpose: "checkin.tags" });
+    expect(out.source).toBe("entity_tags");
     expect(out.fallbackReason).toMatch(/favourites' own tags/);
+  });
+
+  it("does not call the taste profile at all by default", async () => {
+    const insightsTags = vi.fn();
+    const getEntities = vi.fn(async () => result([entity("a", ["jp"])], { endpoint: "/entities", callId: "e3" }));
+    await tagsForFavourites({ insightsTags, getEntities } as unknown as Endpoints, { favouriteIds: ["a"] }, { purpose: "checkin.tags" });
+    expect(insightsTags).not.toHaveBeenCalled();
   });
 
   it("fetches the favourites from /entities when their tags are not known", async () => {
@@ -245,11 +259,19 @@ describe("heat", () => {
 });
 
 describe("with the offline fixtures", () => {
-  it("takes the primary path when the fixtures support tags", async () => {
+  it("takes the insights path when asked and the fixtures support tags", async () => {
+    const store = createMemoryStore();
+    const api = createEndpoints(createQlooClient({ mode: "fixtures", baseUrl: "x", store }).get);
+    const out = await tagsForFavourites(api, { favouriteIds: ["fx_spirited_away", "fx_nujabes"], prefer: "insights" }, { purpose: "checkin.tags" });
+    expect(out.source).toBe("qloo_tags");
+    expect(out.tags.length).toBeGreaterThan(0);
+  });
+
+  it("reads the favourites' own tags by default", async () => {
     const store = createMemoryStore();
     const api = createEndpoints(createQlooClient({ mode: "fixtures", baseUrl: "x", store }).get);
     const out = await tagsForFavourites(api, { favouriteIds: ["fx_spirited_away", "fx_nujabes"] }, { purpose: "checkin.tags" });
-    expect(out.source).toBe("qloo_tags");
+    expect(out.source).toBe("entity_tags");
     expect(out.tags.length).toBeGreaterThan(0);
   });
 });
