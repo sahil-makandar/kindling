@@ -1,5 +1,7 @@
 import { recommendFor } from "@/src/coach/repo";
-import { handleRoute, HttpError, json, requireUuid } from "@/src/runs/http";
+import { getDb } from "@/src/db/client";
+import { clientIp, handleRoute, HttpError, json, requireUuid } from "@/src/runs/http";
+import { createDbRateStore, enforceLimit } from "@/src/runs/rateLimit";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -10,6 +12,8 @@ export function POST(request: Request, { params }: { params: Promise<{ id: strin
   return handleRoute(async () => {
     const id = requireUuid((await params).id, "club");
     const force = new URL(request.url).searchParams.get("force") === "1";
+    // Asking again (force) spends a model call, so it is limited per caller.
+    if (force) await enforceLimit(createDbRateStore(getDb()), `coach:${clientIp(request.headers)}`, 10, "re-reads of the night");
     const result = await recommendFor(id, { force });
     if (!result) throw new HttpError(409, "The Coach needs at least one night with check-ins before it can recommend anything.");
     return json({ recommendation: result.recommendation, created: result.created }, result.created ? 201 : 200);

@@ -284,3 +284,14 @@ describe("the run cache", () => {
     expect(blocked.saved).toEqual([]);
   });
 });
+
+describe("enforceLimit", () => {
+  it("lets requests through up to the limit, then throws a friendly 429 that names what was limited", async () => {
+    const { enforceLimit, createMemoryRateStore: memory } = await import("@/src/runs/rateLimit");
+    const store = memory();
+    await enforceLimit(store, "kit:ip", 2, "kits");
+    await enforceLimit(store, "kit:ip", 2, "kits");
+    await expect(enforceLimit(store, "kit:ip", 2, "kits")).rejects.toMatchObject({ status: 429, message: expect.stringContaining("kits") });
+    await expect(enforceLimit(store, "kit:other", 2, "kits")).resolves.toBeUndefined();
+  });
+});
