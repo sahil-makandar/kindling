@@ -219,7 +219,7 @@ export function CheckInFlow({
         <section aria-live="polite" className="flex flex-col gap-5">
           <div>
             {seated && result.table !== null ? (
-              <p className="font-poster text-[5.5rem] font-black uppercase leading-[0.9] text-tomato">Table {result.table}</p>
+              <p className="font-poster text-[5.5rem] font-black uppercase leading-[0.9] text-ember-ink">Table {result.table}</p>
             ) : (
               <p className="font-display text-3xl">You are checked in.</p>
             )}

@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { Atkinson_Hyperlegible, Big_Shoulders, Young_Serif } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Atkinson_Hyperlegible, Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
 import { APP_NAME, TAGLINE } from "@/src/config/brand";
 import { SiteFooter } from "@/src/ui/SiteFooter";
@@ -11,24 +11,17 @@ const atkinson = Atkinson_Hyperlegible({
   subsets: ["latin"],
 });
 
-const youngSerif = Young_Serif({
-  variable: "--font-young-serif",
-  weight: "400",
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
 });
 
-// Google Fonts folded "Big Shoulders Display" into "Big Shoulders" with an optical
-// size axis. At large sizes the browser picks the display cut automatically.
-const bigShoulders = Big_Shoulders({
-  variable: "--font-big-shoulders",
-  axes: ["opsz"],
-  subsets: ["latin"],
-});
+export const viewport: Viewport = { themeColor: "#FF6B35" };
 
 export const metadata: Metadata = {
-  title: { default: APP_NAME, template: `%s | ${APP_NAME}` },
+  title: { default: `${APP_NAME} - Your hidden clubs`, template: `%s | ${APP_NAME}` },
   description: TAGLINE,
-  openGraph: { title: APP_NAME, description: TAGLINE, type: "website" },
+  openGraph: { title: `${APP_NAME} - Your hidden clubs`, description: TAGLINE, type: "website" },
 };
 
 export default function RootLayout({
@@ -39,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${atkinson.variable} ${youngSerif.variable} ${bigShoulders.variable} h-full`}
+      className={`${atkinson.variable} ${bricolage.variable} h-full`}
     >
       <body className="flex min-h-full flex-col">
         <a
@@ -49,7 +42,7 @@ export default function RootLayout({
           Skip to content
         </a>
         <SiteHeader />
-        <main id="main" className="mx-auto w-full max-w-[1120px] flex-1 px-4 py-8 sm:px-6">
+        <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-8 sm:px-6">
           {children}
         </main>
         <SiteFooter />

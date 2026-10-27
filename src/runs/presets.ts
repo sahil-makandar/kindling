@@ -22,7 +22,7 @@ export const PRESETS: readonly Preset[] = [
   {
     id: "williamsburg",
     label: "Williamsburg, Brooklyn",
-    input: { name: "Page Turner Books (example)", address: "Bedford Ave, Brooklyn, NY", venueType: "bookstore", slowNight: "wednesday", lat: 40.7081, lon: -73.9571, matchedAddress: "Bedford Ave, Williamsburg, Brooklyn, NY" },
+    input: { name: "Kent Ave Brewing (example)", address: "Kent Ave, Brooklyn, NY", venueType: "brewery", slowNight: "wednesday", lat: 40.7081, lon: -73.9571, matchedAddress: "Kent Ave, Williamsburg, Brooklyn, NY" },
   },
   {
     id: "logan_square",

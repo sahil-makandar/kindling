@@ -55,7 +55,7 @@ export default function StyleguidePage() {
 
       <Section title="Type">
         <Card className="space-y-3">
-          <p className="font-display text-[2.75rem] leading-tight">Young Serif for page titles</p>
+          <p className="font-display text-[2.75rem] leading-tight">Bricolage Grotesque for page titles</p>
           <p className="font-poster text-7xl font-black leading-none">87 BIG SHOULDERS</p>
           <p className="max-w-[68ch]">
             Atkinson Hyperlegible for body text and the interface. It is built so similar letters

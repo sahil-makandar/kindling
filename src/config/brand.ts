@@ -6,14 +6,16 @@ export const REPO_URL = "https://github.com/sahil-makandar/kindling";
 // Same values as the Tailwind tokens in docs/DESIGN_SYSTEM.md.
 // Exported for places CSS variables cannot reach, such as the poster PNG export.
 export const COLORS = {
-  paper: "#F6F1E7",
-  card: "#FFFDF8",
-  ink: "#1C1A17",
-  inkSoft: "#5B554C",
-  rule: "#DDD4C3",
-  tomato: "#E4572E",
+  paper: "#FFF7EC",
+  card: "#FFFCF6",
+  ink: "#2A211C",
+  inkSoft: "#6A5B50",
+  rule: "#EBD9C4",
+  tomato: "#FF6B35",
+  emberInk: "#B8420F",
+  peach: "#FFD6B8",
+  marigold: "#FFC845",
+  sage: "#2D6A4F",
   inkBlue: "#2F4F8F",
-  marigold: "#F2B134",
-  sage: "#3F7D58",
-  plum: "#7A3B69",
+  plum: "#8A3B5C",
 } as const;

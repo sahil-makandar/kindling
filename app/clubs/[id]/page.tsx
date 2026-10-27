@@ -8,6 +8,8 @@ import { originFromHeaders } from "@/src/clubs/origin";
 import { getClub } from "@/src/clubs/state";
 import { requireUuid } from "@/src/runs/http";
 import { ClubKitView } from "@/src/ui/ClubKitView";
+import { getJourney } from "@/src/journey/journey";
+import { VenueShell } from "@/src/ui/VenueShell";
 import { KitLoader } from "@/src/ui/KitLoader";
 
 export const metadata: Metadata = { title: "Club kit" };
@@ -23,11 +25,23 @@ export default async function ClubKitPage({ params }: { params: Promise<{ id: st
   }
   const club = await getClub(getDb(), id);
   if (!club) notFound();
-  if (!club.kit) return <KitLoader clubId={club.id} title={club.title} />;
+  const journey = await getJourney(getDb(), { clubId: id });
+  if (!journey) notFound();
+  if (!club.kit) {
+    return (
+      <VenueShell journey={journey} current="kit">
+        <KitLoader clubId={club.id} title={club.title} />
+      </VenueShell>
+    );
+  }
 
   // The poster's QR opens the coming night: the latest open session, or the latest one if all are closed.
   const session = [...club.sessions].reverse().find((s) => s.status === "open") ?? club.sessions.at(-1) ?? null;
   const checkInUrl = session ? `${originFromHeaders(await headers())}/c/${session.checkInCode}` : null;
   const qr = checkInUrl ? await QRCode.toDataURL(checkInUrl, { margin: 1, width: 640, errorCorrectionLevel: "M", color: { dark: COLORS.ink, light: COLORS.card } }) : "";
-  return <ClubKitView club={club} kit={club.kit} qr={qr} checkInUrl={checkInUrl ? new URL(checkInUrl).pathname : null} />;
+  return (
+    <VenueShell journey={journey} current="kit">
+      <ClubKitView club={club} kit={club.kit} qr={qr} checkInUrl={checkInUrl ? new URL(checkInUrl).pathname : null} />
+    </VenueShell>
+  );
 }

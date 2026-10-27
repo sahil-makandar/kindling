@@ -240,8 +240,8 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
                 <Button href="/" variant="primary">
                   Start again
                 </Button>
-                <Button href="/demo" variant="secondary">
-                  See a demo venue
+                <Button href="/sample" variant="secondary">
+                  Explore a sample venue
                 </Button>
               </div>
             </Card>

@@ -96,7 +96,7 @@ export function LiveBoard({ clubId, clubTitle, initial, qr, checkInPath }: { clu
 
   return (
     <div className="flex flex-col gap-6">
-      {board.session.simulated && <Banner variant="simulated">Simulated night for the demo venue. These guests are generated, not real people.</Banner>}
+      {board.session.simulated && <Banner variant="simulated">Simulated night for the sample venue. These guests are generated, not real people.</Banner>}
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>

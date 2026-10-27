@@ -1,0 +1,36 @@
+import type { ReactNode } from "react";
+import { Store } from "lucide-react";
+import { journeyLinks, type Journey, type StepKey } from "@/src/journey/journey";
+import { NIGHT_LABEL, VENUE_TYPE_LABEL, type NIGHTS, type VENUE_TYPES } from "@/src/runs/schema";
+import { RememberVenue } from "./RememberVenue";
+import { Stepper } from "./Stepper";
+
+// The frame every venue page sits in: on a desktop a left rail with the venue and the five steps, on a phone a compact step row on top.
+export function VenueShell({ journey, current, children }: { journey: Journey; current: StepKey; children: ReactNode }) {
+  const steps = journeyLinks(journey, current);
+  const type = VENUE_TYPE_LABEL[journey.venueType as (typeof VENUE_TYPES)[number]] ?? journey.venueType;
+  const night = NIGHT_LABEL[journey.slowNight as (typeof NIGHTS)[number]] ?? journey.slowNight;
+  return (
+    <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-10">
+      {!journey.isDemo && <RememberVenue venueName={journey.venueName} venueType={journey.venueType} slowNight={journey.slowNight} runId={journey.runId} clubId={journey.clubId} clubTitle={journey.clubTitle} />}
+      <aside className="no-print lg:sticky lg:top-6 lg:self-start">
+        <div className="hidden rounded-lg border-2 border-ink bg-card p-4 shadow-hard lg:block">
+          <p className="flex items-center gap-2 text-sm font-bold text-ink-soft">
+            <Store aria-hidden="true" size={16} /> Your venue
+          </p>
+          <p className="mt-1 font-display text-xl font-bold leading-tight">{journey.venueName}</p>
+          <p className="text-sm text-ink-soft">
+            {type}, slow on {night}s
+          </p>
+          {journey.isDemo && <p className="mt-2 text-sm font-bold text-ember-ink">Fictional sample venue</p>}
+          {journey.clubTitle && <p className="mt-3 border-t-2 border-rule pt-3 text-sm">Club: <span className="font-bold">{journey.clubTitle}</span></p>}
+        </div>
+        <div className="lg:mt-5">
+          <Stepper steps={steps} variant="row" />
+          <Stepper steps={steps} variant="list" />
+        </div>
+      </aside>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}

@@ -1,3 +1,4 @@
+import { CountUp } from "./CountUp";
 import { cx } from "./cx";
 
 export function StatTile({
@@ -5,16 +6,22 @@ export function StatTile({
   label,
   delta,
   deltaTone = "neutral",
+  hero = false,
+  suffix,
 }: {
   value: string | number;
   label: string;
   delta?: string;
   deltaTone?: "up" | "down" | "neutral";
+  hero?: boolean;
+  suffix?: string;
 }) {
   return (
-    <div className="rounded-md border-2 border-ink bg-card p-4">
-      <p className="font-poster text-6xl font-black leading-none">{value}</p>
-      <p className="mt-2 text-sm text-ink-soft">{label}</p>
+    <div className={cx("rounded-lg border-2 border-ink p-4 shadow-hard", hero ? "bg-marigold" : "bg-card")}>
+      <p className={cx("font-poster font-extrabold leading-none", hero ? "text-7xl" : "text-5xl")}>
+        {typeof value === "number" ? <CountUp value={value} suffix={suffix} /> : value}
+      </p>
+      <p className={cx("mt-2 text-sm", hero ? "text-ink" : "text-ink-soft")}>{label}</p>
       {delta && (
         <p
           className={cx(

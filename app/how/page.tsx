@@ -77,7 +77,7 @@ export default async function HowPage() {
         <ul className="grid gap-4 md:grid-cols-3">
           {FACTS.map((fact) => (
             <li key={fact.number} className="rounded-md border-2 border-ink bg-card p-5">
-              <p className="font-poster text-6xl font-black leading-none text-tomato">{fact.number}</p>
+              <p className="font-poster text-6xl font-black leading-none text-ember-ink">{fact.number}</p>
               <p className="mt-2">{fact.text}</p>
               <p className="mt-2 break-words text-sm text-ink-soft">
                 Source: <a href={fact.url}>{fact.url}</a>
@@ -94,7 +94,7 @@ export default async function HowPage() {
         <ol className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           {LOOP.map((step, i) => (
             <li key={step.name} className="relative rounded-md border-2 border-ink bg-card p-4">
-              <p className="font-poster text-3xl font-black text-tomato" aria-hidden="true">
+              <p className="font-poster text-3xl font-black text-ember-ink" aria-hidden="true">
                 {i + 1}
               </p>
               <h3 className="text-xl">{step.name}</h3>
@@ -217,7 +217,7 @@ export default async function HowPage() {
         </h2>
         <ul className="flex list-disc flex-col gap-2 pl-6">
           <li>Qloo&apos;s film, music, TV, book and podcast taste is city-wide. What makes a pick local is the places near the venue, the venue&apos;s own tags and the popularity band, and the evidence drawer shows which calls those were.</li>
-          <li>The demo venue is fictional and its four weeks are simulated, seated by the real seating code. Every page that shows them says so.</li>
+          <li>The sample venue is fictional and its four weeks are simulated, seated by the real seating code. Every page that shows them says so.</li>
           <li>Trivia is drafted by a language model and marked &quot;Check before use&quot;.</li>
           <li>The free language model tiers are sometimes busy. When no model answers, the page says the wording came from a template. The numbers and decisions never depend on the model.</li>
           <li>Showing a whole film in public needs a licence. The kit never plans a screening and adds a licence note if any text mentions one.</li>

@@ -10,6 +10,8 @@ import { getClub } from "@/src/clubs/state";
 import { requireUuid } from "@/src/runs/http";
 import { Button } from "@/src/ui/Button";
 import { EmptyState } from "@/src/ui/EmptyState";
+import { getJourney } from "@/src/journey/journey";
+import { VenueShell } from "@/src/ui/VenueShell";
 import { LiveBoard } from "@/src/ui/LiveBoard";
 
 export const metadata: Metadata = { title: "Live night" };
@@ -43,5 +45,11 @@ export default async function LivePage({ params }: { params: Promise<{ id: strin
 
   const path = `/c/${session.checkInCode}`;
   const qr = await QRCode.toDataURL(`${originFromHeaders(await headers())}${path}`, { margin: 1, width: 320, errorCorrectionLevel: "M", color: { dark: COLORS.ink, light: COLORS.card } });
-  return <LiveBoard clubId={club.id} clubTitle={club.title} initial={board} qr={qr} checkInPath={path} />;
+  const journey = await getJourney(db, { clubId: id });
+  if (!journey) notFound();
+  return (
+    <VenueShell journey={journey} current="night">
+      <LiveBoard clubId={club.id} clubTitle={club.title} initial={board} qr={qr} checkInPath={path} />
+    </VenueShell>
+  );
 }

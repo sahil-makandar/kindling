@@ -20,8 +20,9 @@ export function FlyerCard({
 }) {
   return (
     <article
+      style={{ ["--tilt" as string]: tilt === "left" ? "-1deg" : "1deg" }}
       className={cx(
-        "relative rounded-md border-2 border-ink bg-card p-5 pt-8 transition-transform hover:-translate-y-0.5",
+        "relative animate-pin rounded-lg border-2 border-ink bg-card p-5 pt-8 shadow-hard transition-transform duration-200 hover:-translate-y-1 hover:rotate-0",
         tilt === "left" ? "-rotate-1" : "rotate-1",
         className,
       )}
@@ -32,7 +33,7 @@ export function FlyerCard({
       />
       {score !== undefined && (
         <p
-          className="absolute right-4 top-4 font-poster text-5xl font-black leading-none text-tomato"
+          className="absolute right-4 top-4 font-poster text-5xl font-black leading-none text-ember-ink"
           aria-label={`Score ${score}`}
         >
           {score}

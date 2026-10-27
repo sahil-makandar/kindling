@@ -9,8 +9,8 @@ export default function NotFound() {
         action={
           <div className="flex flex-wrap justify-center gap-3">
             <Button href="/">Go to the start</Button>
-            <Button href="/demo" variant="secondary">
-              See a demo venue
+            <Button href="/sample" variant="secondary">
+              Explore a sample venue
             </Button>
           </div>
         }

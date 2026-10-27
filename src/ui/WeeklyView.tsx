@@ -226,13 +226,13 @@ export function WeeklyReport({ data }: { data: WeeklyData }) {
         <p className="text-sm font-bold uppercase tracking-[0.12em] text-ink-soft">Weekly report</p>
         <h1 className="text-[2.5rem]">{club.title}</h1>
         <p className="text-ink-soft">
-          {club.venue.name}, {club.venue.slowNight}s{club.venue.isDemo ? ". This venue is fictional, made for the demo." : "."}
+          {club.venue.name}, {club.venue.slowNight}s{club.venue.isDemo ? ". This venue is fictional, a sample." : "."}
         </p>
       </header>
 
       {data.anySimulated && (
         <Banner variant="simulated">
-          Simulated weeks for the demo venue. These nights and guests are generated for the demo, seated by the real seating code. Real clubs show only real check-ins.
+          Simulated weeks for the sample venue. These nights and guests are generated as a sample, seated by the real seating code. Real clubs show only real check-ins.
         </Banner>
       )}
 

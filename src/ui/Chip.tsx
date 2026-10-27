@@ -17,7 +17,7 @@ export function Chip({
         "inline-block whitespace-nowrap font-bold uppercase text-ink",
         variant === "chip"
           ? "rounded-full border-[1.5px] border-ink px-3 py-0.5 text-xs tracking-wide"
-          : "-rotate-3 rounded-sm border-2 border-ink px-2 py-0.5 text-xs tracking-[0.15em]",
+          : "-rotate-2 rounded-full border-2 border-ink bg-peach px-3 py-0.5 text-xs tracking-[0.12em]",
         className,
       )}
     >
