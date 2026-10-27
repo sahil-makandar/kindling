@@ -179,3 +179,15 @@ describe("shapeCandidates", () => {
     expect(heat?.points).toHaveLength(1);
   });
 });
+
+describe("landing presets", () => {
+  it("every example venue is a valid run request and carries its own coordinates", async () => {
+    const { PRESETS } = await import("@/src/runs/presets");
+    expect(PRESETS).toHaveLength(4);
+    for (const preset of PRESETS) {
+      const parsed = createRunSchema.safeParse(preset.input);
+      expect(parsed.success, preset.id).toBe(true);
+      expect(preset.input.name).toContain("(example)");
+    }
+  });
+});

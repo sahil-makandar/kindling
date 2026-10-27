@@ -1,27 +1,11 @@
-import { z } from "zod";
 import type { Db } from "@/src/db/client";
 import { runs, venues } from "@/src/db/schema";
 import type { GeocodeCandidate, GeocodeResult } from "@/src/geo/geocode";
 import { HttpError } from "./http";
+import { createRunSchema, type CreateRunInput } from "./schema";
 
-export const VENUE_TYPES = ["cafe", "bookstore", "bar", "brewery", "restaurant", "music_venue", "community_space"] as const;
-export const NIGHTS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+export { createRunSchema, type CreateRunInput };
 
-// What the landing form sends. lat and lon are given together when the person picked a preset, a different match from the
-// address lookup, or a spot on the map; then the address is not looked up again.
-export const createRunSchema = z
-  .object({
-    name: z.string().trim().min(2, "Enter your venue's name.").max(80, "That name is too long."),
-    address: z.string().trim().min(3, "Enter the venue's address.").max(200, "That address is too long."),
-    venueType: z.enum(VENUE_TYPES, "Pick the kind of venue."),
-    slowNight: z.enum(NIGHTS, "Pick your slowest night."),
-    baselineHeadcount: z.number().int().min(0).max(1000).optional(),
-    lat: z.number().min(-90).max(90).optional(),
-    lon: z.number().min(-180).max(180).optional(),
-    matchedAddress: z.string().trim().max(300).optional(),
-  })
-  .refine((v) => (v.lat === undefined) === (v.lon === undefined), { message: "Give both a latitude and a longitude, or neither.", path: ["lat"] });
-export type CreateRunInput = z.infer<typeof createRunSchema>;
 
 export type RunLocation = {
   lat: number;
