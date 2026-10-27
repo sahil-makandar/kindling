@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEMO_NAMES, nicknameFor, pickFavouriteIds, planNights, seededRandom } from "@/src/demo/plan";
+import { DEMO_NAMES, nicknameFor, pickFavouriteIds, pickRoomFavourites, planNights, seededRandom } from "@/src/demo/plan";
 
 describe("the demo history", () => {
   const nights = planNights();
@@ -60,5 +60,26 @@ describe("favourites for simulated people", () => {
     const a = seededRandom(5);
     const b = seededRandom(5);
     expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+  });
+});
+
+describe("pickRoomFavourites", () => {
+  const theme = ["t1", "t2", "t3", "t4", "t5"];
+  const adjacent = ["a1", "a2", "a3", "a4", "a5"];
+  const share = (ids: string[], pool: string[]) => ids.filter((id) => pool.includes(id)).length;
+
+  it("gives everyone three different picks", () => {
+    for (let n = 1; n <= 40; n++) {
+      const picks = pickRoomFavourites(theme, adjacent, `p${n}`);
+      expect(picks).toHaveLength(3);
+      expect(new Set(picks).size).toBe(3);
+    }
+  });
+
+  it("makes the first night love the theme and later newcomers lean to the adjacent theme", () => {
+    const first = Array.from({ length: 9 }, (_, i) => pickRoomFavourites(theme, adjacent, `p${i + 1}`)).flat();
+    const later = Array.from({ length: 20 }, (_, i) => pickRoomFavourites(theme, adjacent, `p${i + 10}`)).flat();
+    expect(share(first, theme)).toBeGreaterThan(share(first, adjacent));
+    expect(share(later, adjacent)).toBeGreaterThan(share(later, theme));
   });
 });

@@ -99,26 +99,36 @@ export const THRESHOLDS = { keepReturnRate: 0.3, tweakDrift: 0.65, tweakMinTrend
 
 export function decide(s: CoachSignals): { decision: Decision; reasons: string[] } {
   const pct = (n: number) => `${Math.round(n * 100)}%`;
+  const drifted = s.drift > THRESHOLDS.tweakDrift;
   if (s.sessions < 2) {
-    return { decision: "keep", reasons: ["Only one night so far, which is too early to judge. Keep it and see who comes back."] };
+    return {
+      decision: "keep",
+      reasons: [
+        `Only one night so far, which is too early to judge. Keep it and see who comes back.${drifted ? ` The room's taste is already far from the club's theme (drift ${s.drift.toFixed(2)}, above ${THRESHOLDS.tweakDrift}), so the next report will weigh that.` : ""}`,
+      ],
+    };
   }
-  // Order matters: a club in real trouble switches; a healthy one keeps even if the room has drifted a little.
+  // Order matters. A club in real trouble switches. A room that has moved away from the theme while attendance holds is
+  // tweaked, even if the club is doing well, because the room is telling us what it wants. Then a healthy club keeps.
   if (s.declines >= THRESHOLDS.switchDeclines && s.returnRate < THRESHOLDS.switchReturnRate) {
     return {
       decision: "switch",
       reasons: [`Attendance fell ${s.declines} nights in a row and only ${pct(s.returnRate)} of the last night came back, below the ${pct(THRESHOLDS.switchReturnRate)} line.`],
     };
   }
+  if (drifted && s.trend >= THRESHOLDS.tweakMinTrend) {
+    const healthy = s.trend >= 0 && s.returnRate >= THRESHOLDS.keepReturnRate;
+    return {
+      decision: "tweak",
+      reasons: [
+        `The room's taste has drifted from the club's theme (drift ${s.drift.toFixed(2)}, above ${THRESHOLDS.tweakDrift}) while attendance is ${healthy ? `healthy, ${pct(s.returnRate)} of the last night came back` : "holding"}. Keep what works and lean the night towards what the room loves.`,
+      ],
+    };
+  }
   if (s.trend >= 0 && s.returnRate >= THRESHOLDS.keepReturnRate) {
     return {
       decision: "keep",
-      reasons: [`Attendance is ${s.trend > 0 ? `growing by about ${s.trend} a night` : "steady"} and ${pct(s.returnRate)} of the last night came back, above the ${pct(THRESHOLDS.keepReturnRate)} line.`],
-    };
-  }
-  if (s.drift > THRESHOLDS.tweakDrift && s.trend >= THRESHOLDS.tweakMinTrend) {
-    return {
-      decision: "tweak",
-      reasons: [`The room's taste has drifted from the club's theme (drift ${s.drift.toFixed(2)}, above ${THRESHOLDS.tweakDrift}) while attendance is holding.`],
+      reasons: [`Attendance is ${s.trend > 0 ? `growing by about ${s.trend} a night` : "steady"} and ${pct(s.returnRate)} of the last night came back, above the ${pct(THRESHOLDS.keepReturnRate)} line, and the room still loves the theme (drift ${s.drift.toFixed(2)}).`],
     };
   }
   if (s.trend < 0) {

@@ -69,3 +69,39 @@ export function pickFavouriteIds(groups: readonly (readonly string[])[], personI
   }
   return chosen.slice(0, 3);
 }
+
+// How many people came on the first night. They love the club's own theme. Later newcomers lean towards an adjacent
+// theme, which is how the sample room drifts the way a real room can.
+export const FIRST_NIGHT_PEOPLE = 9;
+
+// Three favourites for one person. People from the first night take two from the club's theme and one from the adjacent
+// theme. Newcomers after that take mostly the adjacent theme, with the club's theme now and then.
+export function pickRoomFavourites(theme: readonly string[], adjacent: readonly string[], personId: string): string[] {
+  const n = Number(personId.slice(1));
+  const rand = seededRandom(n * 7919);
+  const original = n <= FIRST_NIGHT_PEOPLE;
+  const chosen: string[] = [];
+  const take = (pool: readonly string[]) => {
+    for (let tries = 0; tries < pool.length * 3 && pool.length > 0; tries++) {
+      const id = pool[Math.floor(rand() * pool.length)];
+      if (!chosen.includes(id)) {
+        chosen.push(id);
+        return;
+      }
+    }
+  };
+  if (original) {
+    take(theme);
+    take(theme);
+    take(adjacent);
+  } else {
+    take(adjacent);
+    take(adjacent);
+    take(rand() < 0.2 ? theme : adjacent);
+  }
+  for (const id of [...adjacent, ...theme]) {
+    if (chosen.length >= 3) break;
+    if (!chosen.includes(id)) chosen.push(id);
+  }
+  return chosen.slice(0, 3);
+}

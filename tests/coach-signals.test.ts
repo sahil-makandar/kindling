@@ -68,8 +68,24 @@ describe("decide", () => {
     expect(result.reasons[0]).toContain("growing");
   });
 
-  it("keeps even when the room has drifted, if the club is healthy", () => {
-    expect(decide(signals({ drift: 0.9 })).decision).toBe("keep");
+  it("tweaks a healthy club when the room has drifted past the line, and says the club is healthy", () => {
+    const result = decide(signals({ drift: 0.9 }));
+    expect(result.decision).toBe("tweak");
+    expect(result.reasons[0]).toContain("0.90");
+    expect(result.reasons[0]).toContain("healthy");
+  });
+
+  it("keeps a healthy club whose room still loves the theme, and quotes the drift", () => {
+    const result = decide(signals({ drift: 0.2 }));
+    expect(result.decision).toBe("keep");
+    expect(result.reasons[0]).toContain("0.20");
+  });
+
+  it("never keeps with a drift above the line without saying why", () => {
+    const first = decide(signals({ sessions: 1, drift: 0.9 }));
+    expect(first.decision).toBe("keep");
+    expect(first.reasons[0]).toContain("too early");
+    expect(first.reasons[0]).toContain("0.90");
   });
 
   it("tweaks when the room has drifted and attendance is only holding", () => {

@@ -15,14 +15,14 @@ import type { QlooEntity } from "@/src/qloo/schemas";
 import { tagsFromEntities } from "@/src/qloo/tags";
 import { createDbRunWriter, createRun } from "@/src/runs/createRun";
 import { toVector } from "@/src/seating/tasteVector";
-import { nicknameFor, pickFavouriteIds, planNights } from "./plan";
+import { nicknameFor, pickFavouriteIds, pickRoomFavourites, planNights } from "./plan";
 
 // Builds the demo venue (N5): a fictional venue, a real agent run, a club from the top pick and four simulated past
 // nights seated by the real seating code. Every simulated row is marked simulated = true, and the pages say so.
 // The language model must really answer for the design, the comparison, the kit and the Coach, so each of those is
 // retried when the free tier is busy, and the script says so plainly if it still could not.
 
-export const DEMO_VENUE_NAME = "The Lantern Room (fictional demo venue)";
+export const DEMO_VENUE_NAME = "The Lantern Room (fictional sample venue)";
 const MEDIA = new Set(["artist", "movie", "tv_show", "book", "podcast"]);
 const DAY_MS = 86_400_000;
 const VIBE = [4, 4, 5, 5];
@@ -53,6 +53,15 @@ export function tasteGroups(pool: readonly PoolSignal[], themeRefs: readonly Poo
   const themeTags = new Set(media.filter((s) => theme.has(s.refId)).flatMap((s) => s.tags.slice(0, 3).map((t) => t.name.trim().toLowerCase())));
   const themed = media.filter((s) => theme.has(s.refId) || s.tags.some((t) => themeTags.has(t.name.trim().toLowerCase()))).map((s) => s.refId);
   return themed.length >= 3 ? [themed, themed, ...groups] : groups;
+}
+
+// The club's own theme, and the largest other group of things the area loves: the adjacent theme the room drifts towards.
+export function themeAndAdjacent(pool: readonly PoolSignal[], themeRefs: readonly PoolRef[]): { theme: string[]; adjacent: string[] } {
+  const all = tasteGroups(pool, themeRefs);
+  const theme = all.length > 1 && all[0] === all[1] ? all[0] : [];
+  const themeSet = new Set(theme);
+  const adjacent = all.filter((g) => g !== theme).map((g) => g.filter((id) => !themeSet.has(id))).find((g) => g.length >= 3) ?? [];
+  return { theme, adjacent };
 }
 
 export type SeedResult = { clubId: string; runId: string; created: boolean };
@@ -162,7 +171,11 @@ export async function seedDemo(options: { force?: boolean; log?: Log } = {}): Pr
   // ---- four simulated nights, seated for real ----
   const pool = await createDbDesignerRepo(db).loadPool(created.runId);
   const bySignal = new Map(pool.map((s) => [s.refId, s]));
-  const groups = tasteGroups(pool, [top.anchor as PoolRef, ...(top.companions as PoolRef[])]);
+  const themeRefs = [top.anchor as PoolRef, ...(top.companions as PoolRef[])];
+  const groups = tasteGroups(pool, themeRefs);
+  const { theme, adjacent } = themeAndAdjacent(pool, themeRefs);
+  const drifting = theme.length >= 3 && adjacent.length >= 3;
+  log(drifting ? `The room drifts from the club's theme (${theme.length} things) towards an adjacent one (${adjacent.length} things).` : "No adjacent theme found, so the room keeps mixed tastes.");
   if (groups.length === 0) throw new Error("The pool has no media entities to build simulated tastes from.");
 
   const checkIn = createDbCheckInRepo(db);
@@ -186,7 +199,7 @@ export async function seedDemo(options: { force?: boolean; log?: Log } = {}): Pr
         attendeeId = await checkIn.createAttendee(nicknameFor(personId), null);
         attendeeFor.set(personId, attendeeId);
       }
-      const picked = pickFavouriteIds(groups, personId).flatMap((id) => {
+      const picked = (drifting ? pickRoomFavourites(theme, adjacent, personId) : pickFavouriteIds(groups, personId)).flatMap((id) => {
         const signal = bySignal.get(id);
         return signal && signal.domain ? [signal] : [];
       });
