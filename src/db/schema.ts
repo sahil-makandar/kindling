@@ -124,6 +124,8 @@ export const signals = pgTable(
     // Where else this signal showed up (area, venue crowd, trend, nearby places), each with its own
     // affinity, rank and Qloo call. The Verifier reads the trend rank and venue-crowd affinity from here.
     appearances: jsonb("appearances"),
+    // Tags only: Qloo's tag type, to tell genre and theme tags from place-vibe tags.
+    tagType: text("tag_type"),
     qlooCallId: uuid("qloo_call_id").references(() => qlooCalls.id, { onDelete: "set null" }),
   },
   (t) => [unique("signals_run_ref_unique").on(t.runId, t.refId), index("signals_run_idx").on(t.runId)],

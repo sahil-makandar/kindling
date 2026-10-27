@@ -12,6 +12,8 @@ export type PoolSignal = {
   refId: string;
   kind: "entity" | "tag";
   domain: string | null;
+  // Tags only: Qloo's tag type (urn:tag:genre:qloo, urn:tag:ambience:qloo...), to tell taste tags from place-vibe tags.
+  tagType?: string;
   // The source where this signal scored highest. The others are in `appearances`.
   source: SignalSource;
   name: string;
@@ -53,6 +55,7 @@ export class SignalPool {
         refId: tag.id,
         kind: "tag",
         domain: null,
+        tagType: tag.type,
         name: tag.name,
         affinity: tag.affinity,
         tags: [],
@@ -67,6 +70,7 @@ export class SignalPool {
     refId: string;
     kind: "entity" | "tag";
     domain: string | null;
+    tagType?: string;
     name: string;
     affinity?: number;
     popularity?: number;
@@ -80,6 +84,7 @@ export class SignalPool {
         refId: input.refId,
         kind: input.kind,
         domain: input.domain,
+        ...(input.tagType ? { tagType: input.tagType } : {}),
         source: input.source,
         name: input.name,
         affinity: input.affinity,

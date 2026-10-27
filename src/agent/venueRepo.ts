@@ -21,6 +21,7 @@ export function createDbVenueRepo(db: Db): Pick<LocatorDeps, "getVenue" | "saveM
         qlooEntityId: row.qlooEntityId,
         qlooEntityName: row.qlooEntityName,
         qlooTags: row.qlooTags as QlooTag[] | null,
+        slowNight: row.slowNight,
       };
     },
 

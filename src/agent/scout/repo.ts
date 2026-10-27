@@ -31,6 +31,7 @@ export function createDbScoutRepo(db: Db): Pick<ScoutDeps, "saveSignals" | "save
             popularity: s.popularity ?? null,
             tags: s.tags,
             appearances: s.appearances,
+            tagType: s.tagType ?? null,
             // Only real log rows can be linked (the foreign key points at qloo_calls).
             qlooCallId: s.callId && UUID.test(s.callId) ? s.callId : null,
           })),

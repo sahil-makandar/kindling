@@ -19,6 +19,8 @@ export type VenueInput = {
   qlooEntityName?: string | null;
   // The venue's own tags on Qloo (ambience, interests, category...), saved with the match.
   qlooTags?: QlooTag[] | null;
+  // The owner's slowest night, for example "tuesday".
+  slowNight?: string | null;
 };
 
 export type VenueMatch = { id: string; name: string; category: string | null; tags: QlooTag[] };

@@ -1,0 +1,1 @@
+ALTER TABLE "signals" ADD COLUMN "tag_type" text;
