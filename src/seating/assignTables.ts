@@ -20,6 +20,8 @@ export type TableExplanation = {
   sharedFavourites: SharedItem[];
   // True when every member holds the top shared tag.
   everyoneShares: boolean;
+  // How many people the counts are out of.
+  size: number;
 };
 
 export type Table = { number: number; memberIds: string[]; explanation: TableExplanation };
@@ -48,9 +50,10 @@ export function explainTable(members: readonly Person[]): TableExplanation {
   const shared = [...tags.values()].filter((t) => t.count >= 2).sort((a, b) => b.count - a.count || b.weight - a.weight || a.name.localeCompare(b.name));
   const sharedFavourites = [...favourites.values()].filter((f) => f.count >= 2).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   return {
-    sharedTags: shared.slice(0, 3).map(({ name, count }) => ({ name, count })),
-    sharedFavourites: sharedFavourites.slice(0, 3),
+    sharedTags: shared.slice(0, 6).map(({ name, count }) => ({ name, count })),
+    sharedFavourites: sharedFavourites.slice(0, 6),
     everyoneShares: members.length >= 2 && shared.length > 0 && shared[0].count === members.length,
+    size: members.length,
   };
 }
 

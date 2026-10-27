@@ -132,14 +132,14 @@ describe("assignTables", () => {
 });
 
 describe("explainTable", () => {
-  it("lists the top three shared tags and any shared favourites", () => {
+  it("lists the most shared tags first, with any shared favourites", () => {
     const members = [
       person("a", GHIBLI, [["fx_1", "Spirited Away"], ["fx_2", "Nujabes"]]),
       person("b", GHIBLI, [["fx_1", "Spirited Away"]]),
       person("c", tags(["Anime", 1], ["Fantasy", 0.5]), []),
     ];
     const explanation = explainTable(members);
-    expect(explanation.sharedTags.map((t) => t.name)).toEqual(["Anime", "Fantasy", "Studio Ghibli"]);
+    expect(explanation.sharedTags.map((t) => t.name).slice(0, 3)).toEqual(["Anime", "Fantasy", "Studio Ghibli"]);
     expect(explanation.sharedTags[0].count).toBe(3);
     expect(explanation.sharedFavourites).toEqual([{ name: "Spirited Away", count: 2 }]);
     expect(explanation.everyoneShares).toBe(true);
