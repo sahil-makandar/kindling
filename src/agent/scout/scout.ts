@@ -261,7 +261,7 @@ export class ScoutRun {
 
         const withAffinity = result.items.filter((e) => e.affinity !== undefined).length;
         await this.deps.trace.info(
-          `Reading what people ${this.radiusLabel} love in ${label}${band === "local" ? ", beyond the biggest names" : ", the mainstream picks"}... ${plural(result.items.length, "result")}.${result.items.length ? ` Strongest: ${strongestLine(result.items)}.` : ""}`,
+          `Reading what your city loves in ${label}${band === "local" ? ", beyond the biggest names" : ", the mainstream picks"}... ${plural(result.items.length, "result")} found.${result.items.length ? ` Strongest: ${strongestLine(result.items)}.` : ""}`,
           { domain, band, callId: result.callId, cached: result.cached },
         );
 

@@ -173,7 +173,7 @@ describe("scan_area", () => {
     expect(result).toMatchObject({ ok: true, domain: "movie", band: "local", radius: "within 500 m", results: 8, thin: false, callsUsed: 1, callsLeft: 15 });
     expect(messages()[0]).toBe("Next: read the area's distinctive taste in film. Film is the most relevant domain for a cafe.");
     expect(messages()[1]).toMatch(
-      /^Reading what people within 500 m love in film, beyond the biggest names\.\.\. 8 results\. Strongest: In the Mood for Love \(0\.94\), Chungking Express \(0\.91\), /,
+      /^Reading what your city loves in film, beyond the biggest names\.\.\. 8 results found\. Strongest: In the Mood for Love \(0\.94\), Chungking Express \(0\.91\), /,
     );
     expect(scout.pool.areaEntities("movie")).toHaveLength(8);
   });

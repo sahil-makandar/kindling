@@ -43,7 +43,7 @@ export default function VenueMap({
     });
     L.marker([lat, lon], { icon: pin, title: label, keyboard: false }).addTo(map);
 
-    const circle = L.circle([lat, lon], { radius: radiusM, color: COLORS.inkBlue, weight: 2, dashArray: "6 6", fillColor: COLORS.inkBlue, fillOpacity: 0.06 }).addTo(map);
+    const circle = L.circle([lat, lon], { radius: radiusM, color: COLORS.emberInk, weight: 2, dashArray: "6 6", fillColor: COLORS.tomato, fillOpacity: 0.08 }).addTo(map);
     const heatLayer = L.layerGroup().addTo(map);
     layers.current = { map, circle, heat: heatLayer };
     map.fitBounds(circle.getBounds(), { padding: [16, 16] });

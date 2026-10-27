@@ -6,6 +6,8 @@ import type { Recommendation } from "@/src/coach/coach";
 import type { WeeklyView as WeeklyData } from "@/src/coach/view";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
+import { PageIntro } from "./PageIntro";
+import { SparkBurst } from "./Sparks";
 import { Card } from "./Card";
 import { Chip } from "./Chip";
 import { cx } from "./cx";
@@ -129,7 +131,7 @@ function CoachCard({ data }: { data: WeeklyData }) {
     <Card className="flex flex-col gap-4 shadow-hard">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-2xl">The Coach says</h2>
-        <span className={cx("-rotate-2 rounded-sm border-2 border-ink px-3 py-1 font-poster text-3xl font-black uppercase tracking-wide", decision.tone)}>{decision.label}</span>
+        <span className={cx("-rotate-2 rounded-full border-2 border-ink px-4 py-1 font-poster text-3xl font-extrabold uppercase tracking-wide", decision.tone)}>{decision.label}</span>
       </div>
       <p className="max-w-[68ch] text-lg">{rec.rationale}</p>
       <p className="text-sm text-ink-soft">
@@ -222,13 +224,19 @@ export function WeeklyReport({ data }: { data: WeeklyData }) {
         </Banner>
       )}
 
-      <header className="flex flex-col gap-2">
-        <p className="text-sm font-bold uppercase tracking-[0.12em] text-ink-soft">Weekly report</p>
-        <h1 className="text-[2.5rem]">{club.title}</h1>
-        <p className="text-ink-soft">
-          {club.venue.name}, {club.venue.slowNight}s{club.venue.isDemo ? ". This venue is fictional, a sample." : "."}
-        </p>
-      </header>
+      <PageIntro
+        title={club.title}
+        action={
+          data.next ? (
+            <Button href={`/clubs/${club.id}/live`} variant="cta" className="text-lg">
+              Run the next night
+            </Button>
+          ) : undefined
+        }
+      >
+        How your club is growing at {club.venue.name}: who came, who came back, and what the Coach suggests for next week.
+        {club.venue.isDemo ? " This venue is fictional, a sample." : ""}
+      </PageIntro>
 
       {data.anySimulated && (
         <Banner variant="simulated">
@@ -246,30 +254,46 @@ export function WeeklyReport({ data }: { data: WeeklyData }) {
         </Card>
       ) : (
         <>
-          <section aria-label="Headline numbers" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatTile value={tiles.regularsMade} label="Regulars made (3 or more visits)" />
-            <StatTile value={`${Math.round(tiles.returnRate * 100)}%`} label="Of last night came back" />
-            <StatTile value={tiles.seatsFilled} label="Seats filled last night" delta={upBy !== null ? `${upBy >= 0 ? "+" : ""}${upBy} vs ${baselineNote?.replace("Up from ", "")}` : undefined} deltaTone={upBy !== null && upBy >= 0 ? "up" : "neutral"} />
-            <StatTile value={tiles.strangersSeated} label="Pairs seated together by taste who had not met" />
-          </section>
-
-          <section aria-labelledby="chart-title">
-            <h2 id="chart-title" className="text-[2rem]">
-              Check-ins per night
-            </h2>
-            <div className="mt-3 rounded-md border-2 border-ink bg-card p-4">
-              <WeeklyChart nights={nights} baseline={tiles.baseline} />
+          <section aria-label="Headline numbers" className="grid gap-4 lg:grid-cols-[1.1fr_1.4fr]">
+            <div className="relative">
+              <StatTile hero value={tiles.regularsMade} label="Regulars made: people who have come 3 or more times" />
+              {tiles.regularsMade > 0 && <SparkBurst />}
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <StatTile value={Math.round(tiles.returnRate * 100)} suffix="%" label="Of last night came back" />
+              <StatTile value={tiles.seatsFilled} label="Seats filled last night" delta={upBy !== null ? `${upBy >= 0 ? "+" : ""}${upBy} vs ${baselineNote?.replace("Up from ", "")}` : undefined} deltaTone={upBy !== null && upBy >= 0 ? "up" : "neutral"} />
+              <StatTile value={tiles.strangersSeated} label="Pairs seated by taste who had not met" />
             </div>
           </section>
+
+          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start">
+            <section aria-labelledby="chart-title">
+              <h2 id="chart-title" className="text-[2rem]">
+                Who came each night
+              </h2>
+              <div className="mt-3 rounded-lg border-2 border-ink bg-card p-4 shadow-hard">
+                <WeeklyChart nights={nights} baseline={tiles.baseline} />
+              </div>
+            </section>
+
+            <section aria-labelledby="coach-title">
+              <h2 id="coach-title" className="sr-only">
+                The Coach
+              </h2>
+              <CoachCard key={rec?.id ?? "none"} data={data} />
+            </section>
+          </div>
         </>
       )}
 
-      <section aria-labelledby="coach-title">
-        <h2 id="coach-title" className="sr-only">
-          The Coach
-        </h2>
-        <CoachCard key={rec?.id ?? "none"} data={data} />
-      </section>
+      {nights.length === 0 && (
+        <section aria-labelledby="coach-title">
+          <h2 id="coach-title" className="sr-only">
+            The Coach
+          </h2>
+          <CoachCard key={rec?.id ?? "none"} data={data} />
+        </section>
+      )}
 
       {rec && (
         <section aria-labelledby="taste-title" className="rounded-md border-2 border-ink bg-card p-5">

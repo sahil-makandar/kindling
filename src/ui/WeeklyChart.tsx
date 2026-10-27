@@ -2,38 +2,47 @@ import type { SessionStats } from "@/src/coach/signals";
 
 const shortDate = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
-// Check-ins per night with the people who came back stacked below the new faces. Plain SVG, with the numbers also in a
-// table for screen readers.
+// Check-ins per night, split into people who had been before (green, at the bottom) and new faces (peach, on top). The
+// bars are labelled directly, with no legend, and both axes have titles. Plain SVG, with the numbers also in a table for
+// screen readers.
 export function WeeklyChart({ nights, baseline }: { nights: ReadonlyArray<SessionStats>; baseline: number | null }) {
   if (nights.length === 0) return null;
-  const width = 640;
-  const height = 280;
-  const pad = { top: 28, right: 16, bottom: 52, left: 40 };
+  const width = 520;
+  const height = 320;
+  const pad = { top: 34, right: 104, bottom: 64, left: 56 };
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
   const max = Math.max(5, ...nights.map((n) => n.attendance), baseline ?? 0);
   const ceiling = Math.ceil(max / 5) * 5;
   const slot = innerW / nights.length;
-  const barW = Math.min(64, slot * 0.6);
+  const barW = Math.min(72, slot * 0.62);
   const y = (value: number) => pad.top + innerH - (value / ceiling) * innerH;
+  const last = nights[nights.length - 1];
+  const lastX = pad.left + slot * (nights.length - 1) + (slot - barW) / 2 + barW;
   const summary = nights.map((n) => `night ${n.number}: ${n.attendance} check-ins, ${n.returning} had been before`).join("; ");
 
   return (
     <figure>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Check-ins per night. ${summary}.`} className="h-auto w-full">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Guests per night, split into people who came back and new faces. ${summary}.`} className="h-auto w-full">
         {[0, ceiling / 2, ceiling].map((tick) => (
           <g key={tick}>
-            <line x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} stroke="var(--color-rule)" strokeWidth="1" />
-            <text x={pad.left - 8} y={y(tick) + 4} textAnchor="end" fontSize="12" fill="var(--color-ink-soft)">
+            <line x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} stroke="var(--color-rule)" strokeWidth="1.5" />
+            <text x={pad.left - 10} y={y(tick) + 6} textAnchor="end" fontSize="17" fill="var(--color-ink-soft)">
               {tick}
             </text>
           </g>
         ))}
+        <text transform={`translate(16 ${pad.top + innerH / 2}) rotate(-90)`} textAnchor="middle" fontSize="16" fontWeight="700" fill="var(--color-ink)">
+          Guests
+        </text>
         {baseline !== null && (
           <g>
-            <line x1={pad.left} x2={width - pad.right} y1={y(baseline)} y2={y(baseline)} stroke="var(--color-ink)" strokeWidth="1.5" strokeDasharray="6 5" />
-            <text x={width - pad.right} y={y(baseline) - 6} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--color-ink)">
-              A normal night before: {baseline}
+            <line x1={pad.left} x2={width - pad.right} y1={y(baseline)} y2={y(baseline)} stroke="var(--color-ink)" strokeWidth="2" strokeDasharray="7 6" />
+            <text x={width - pad.right + 8} y={y(baseline) + 5} fontSize="14" fontWeight="700" fill="var(--color-ink)">
+              Your usual
+            </text>
+            <text x={width - pad.right + 8} y={y(baseline) + 21} fontSize="14" fontWeight="700" fill="var(--color-ink)">
+              night: {baseline}
             </text>
           </g>
         )}
@@ -42,37 +51,54 @@ export function WeeklyChart({ nights, baseline }: { nights: ReadonlyArray<Sessio
           const fresh = night.attendance - night.returning;
           return (
             <g key={night.number}>
-              <rect x={x} y={y(night.returning)} width={barW} height={Math.max(0, y(0) - y(night.returning))} fill="var(--color-ink)" />
-              <rect x={x} y={y(night.attendance)} width={barW} height={Math.max(0, y(night.returning) - y(night.attendance))} fill="var(--color-marigold)" stroke="var(--color-ink)" strokeWidth="2" />
-              <text x={x + barW / 2} y={y(night.attendance) - 8} textAnchor="middle" fontSize="18" fontWeight="900" fontFamily="var(--font-big-shoulders), sans-serif" fill="var(--color-ink)">
+              <rect x={x} y={y(night.returning)} width={barW} height={Math.max(0, y(0) - y(night.returning))} rx="6" fill="var(--color-sage)" stroke="var(--color-ink)" strokeWidth="2.5" />
+              <rect x={x} y={y(night.attendance)} width={barW} height={Math.max(0, y(night.returning) - y(night.attendance))} rx="6" fill="var(--color-peach)" stroke="var(--color-ink)" strokeWidth="2.5" />
+              {night.returning > 0 && y(0) - y(night.returning) > 24 && (
+                <text x={x + barW / 2} y={(y(0) + y(night.returning)) / 2 + 6} textAnchor="middle" fontSize="17" fontWeight="700" fill="#FFFCF6">
+                  {night.returning}
+                </text>
+              )}
+              {fresh > 0 && y(night.returning) - y(night.attendance) > 24 && (
+                <text x={x + barW / 2} y={(y(night.returning) + y(night.attendance)) / 2 + 6} textAnchor="middle" fontSize="17" fontWeight="700" fill="var(--color-ink)">
+                  {fresh}
+                </text>
+              )}
+              <text x={x + barW / 2} y={y(night.attendance) - 9} textAnchor="middle" fontSize="22" fontWeight="800" fontFamily="var(--font-bricolage), sans-serif" fill="var(--color-ink)">
                 {night.attendance}
               </text>
-              <text x={x + barW / 2} y={height - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--color-ink)">
+              <text x={x + barW / 2} y={height - 36} textAnchor="middle" fontSize="16" fontWeight="700" fill="var(--color-ink)">
                 Night {night.number}
               </text>
-              <text x={x + barW / 2} y={height - 12} textAnchor="middle" fontSize="12" fill="var(--color-ink-soft)">
+              <text x={x + barW / 2} y={height - 17} textAnchor="middle" fontSize="15" fill="var(--color-ink-soft)">
                 {shortDate(night.date)}
               </text>
               <title>{`Night ${night.number}: ${night.attendance} check-ins, ${night.returning} came back, ${fresh} new`}</title>
             </g>
           );
         })}
+        {/* Direct labels on the last bar, in place of a legend. */}
+        {last.returning > 0 && (
+          <text x={lastX + 10} y={(y(0) + y(last.returning)) / 2 + 5} fontSize="15" fontWeight="700" fill="var(--color-sage)">
+            Came back
+          </text>
+        )}
+        {last.attendance - last.returning > 0 && (
+          <text x={lastX + 10} y={(y(last.returning) + y(last.attendance)) / 2 + 5} fontSize="15" fontWeight="700" fill="var(--color-ember-ink)">
+            New faces
+          </text>
+        )}
+        <text x={pad.left + innerW / 2} y={height - 1} textAnchor="middle" fontSize="12" fill="var(--color-ink-soft)">
+          Nights, oldest on the left
+        </text>
       </svg>
-      <figcaption className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-        <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="inline-block h-3 w-3 bg-ink" /> Came back
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="inline-block h-3 w-3 border-2 border-ink bg-marigold" /> New faces
-        </span>
-      </figcaption>
       <table className="sr-only">
-        <caption>Check-ins per night</caption>
+        <caption>Guests per night</caption>
         <thead>
           <tr>
             <th scope="col">Night</th>
-            <th scope="col">Check-ins</th>
+            <th scope="col">Guests</th>
             <th scope="col">Came back</th>
+            <th scope="col">New</th>
           </tr>
         </thead>
         <tbody>
@@ -81,6 +107,7 @@ export function WeeklyChart({ nights, baseline }: { nights: ReadonlyArray<Sessio
               <th scope="row">{n.number}</th>
               <td>{n.attendance}</td>
               <td>{n.returning}</td>
+              <td>{n.attendance - n.returning}</td>
             </tr>
           ))}
         </tbody>

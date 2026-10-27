@@ -239,18 +239,21 @@ export function ClubKitView({ club, kit, qr, checkInUrl }: { club: ClubView; kit
           <Chip variant="stamp">{FORMAT_LABEL[kit.format]}</Chip>
         </div>
         <p className="max-w-[68ch] text-lg">{kit.hook}</p>
-        <p className="text-ink-soft">
-          {club.venue.name}, every {kit.night}. {kit.source === "fallback" && "The words in this kit came from a template because the language model was busy."}
+        <p className="max-w-[68ch] text-ink-soft">
+          This is everything you need to run it at {club.venue.name}, every {kit.night}: a poster to print, the run of the night, a listing to post, a playlist and a menu special. {kit.source === "fallback" && "The words in this kit came from a template because the language model was busy."}
         </p>
-        <div className="mt-2 flex flex-wrap gap-3">
-          {club.runId && (
-            <Button href={`/runs/${club.runId}/clubs`} variant="secondary">
-              Back to the picks
-            </Button>
-          )}
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Button href={`/clubs/${club.id}/live`} variant="cta" className="text-lg">
+            Run the night
+          </Button>
           {checkInUrl && (
             <Button href={checkInUrl} variant="secondary">
               Open the check-in page
+            </Button>
+          )}
+          {club.runId && (
+            <Button href={`/runs/${club.runId}/clubs`} variant="secondary">
+              Back to the picks
             </Button>
           )}
         </div>

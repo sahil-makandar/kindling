@@ -9,6 +9,8 @@ import { WEIGHTS } from "@/src/scoring/clubScore";
 import type { CandidateView, CandidatesView, ComponentView, EvidenceCall } from "@/src/runs/state";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
+import { PageIntro } from "./PageIntro";
+import { SparkBurst } from "./Sparks";
 import { Card } from "./Card";
 import { Chip } from "./Chip";
 import { cx } from "./cx";
@@ -107,6 +109,7 @@ export function PicksView({ data }: { data: CandidatesView }) {
   const [compare, setCompare] = useState(false);
   const [making, setMaking] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [sparked, setSparked] = useState<string | null>(null);
 
   const ranked = data.candidates.filter((c) => c.score !== null);
   const unranked = data.candidates.filter((c) => c.score === null);
@@ -121,7 +124,9 @@ export function PicksView({ data }: { data: CandidatesView }) {
       const response = await fetch("/api/clubs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ candidateId }) });
       const body = (await response.json().catch(() => ({}))) as { clubId?: string; error?: string };
       if (response.ok && body.clubId) {
-        router.push(`/clubs/${body.clubId}`);
+        // A short spark burst on the chosen flyer, then on to its kit.
+        setSparked(candidateId);
+        setTimeout(() => router.push(`/clubs/${body.clubId}`), 650);
         return;
       }
       setProblem(body.error ?? "Something went wrong. Please try again.");
@@ -151,12 +156,18 @@ export function PicksView({ data }: { data: CandidatesView }) {
         </Banner>
       )}
 
-      <header className="max-w-[68ch]">
-        <h1 className="text-[2.5rem]">Hidden clubs for {data.venue.name}</h1>
-        <p className="mt-2 text-lg text-ink-soft">
-          Ranked by a formula you can read. Press a score bar, or &quot;How we know&quot;, to see the exact Qloo calls behind a number.
-        </p>
-      </header>
+      <PageIntro
+        title={`Hidden clubs for ${data.venue.name}`}
+        action={
+          top[0] ? (
+            <Button variant="cta" className="text-lg" disabled={making !== null} onClick={() => void makeClub(top[0].id)}>
+              {making === top[0].id ? "Making it..." : "Make the top pick our club"}
+            </Button>
+          ) : undefined
+        }
+      >
+        Pick the club you want to run. Each score blends your venue&apos;s crowd, the places within 1 km and your city&apos;s culture. Press a bar or &quot;How we know&quot; to see the Qloo calls behind a number.
+      </PageIntro>
 
       <section aria-label="Top picks" className="grid gap-8 md:grid-cols-3">
         {top.map((club, i) => (
@@ -167,6 +178,7 @@ export function PicksView({ data }: { data: CandidatesView }) {
               <IfYouLove club={club} />
             </div>
             {!club.verified && <p className="mt-3 text-sm font-bold">Not checked with a second Qloo call, so the fit between its parts is a neutral guess.</p>}
+            {sparked === club.id && <SparkBurst />}
             <div className="mt-4 flex flex-col">
               {club.components
                 .filter((part) => LOCAL_BARS.includes(part.name))

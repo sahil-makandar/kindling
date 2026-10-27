@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RunStateView, TraceView } from "@/src/runs/state";
 import { NIGHT_LABEL, VENUE_TYPE_LABEL } from "@/src/runs/schema";
+import type { CandidatesView } from "@/src/runs/state";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { cx } from "./cx";
+import { Ember, type EmberMood } from "./Ember";
+import { PageIntro } from "./PageIntro";
+import { SparkBurst } from "./Sparks";
 import { Spinner } from "./Spinner";
 import { StatTile } from "./StatTile";
 import { VenueMapView } from "./VenueMapLoader";
@@ -18,6 +22,16 @@ const STAGES = [
   { id: "verify", title: "Check the clubs", doing: "Checking each club with more Qloo calls" },
   { id: "baseline", title: "Compare without Qloo", doing: "Asking a plain language model the same question" },
 ] as const;
+
+// About how long each stage takes, in seconds, for the progress bar and the time left. These are estimates from real runs.
+const EXPECTED_S: Record<string, number> = { locate: 6, scout: 35, design: 15, verify: 20, baseline: 3 };
+const TOTAL_S = Object.values(EXPECTED_S).reduce((a, b) => a + b, 0);
+
+function timeLeft(seconds: number): string {
+  if (seconds < 10) return "a few seconds left";
+  if (seconds < 55) return `about ${Math.round(seconds / 5) * 5} seconds left`;
+  return `about ${Math.max(1, Math.round(seconds / 60))} minute${seconds >= 90 ? "s" : ""} left`;
+}
 
 const stageIndex = (stage: string) => STAGES.findIndex((s) => s.id === stage);
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -46,6 +60,8 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
   const [shown, setShown] = useState(initial.run.status === "done" && !replay ? initial.events.length : 0);
   const [now, setNow] = useState(() => Date.now());
   const [connection, setConnection] = useState<string | null>(null);
+  const [stageSince, setStageSince] = useState(() => ({ stage: initial.run.stage as string, at: Date.now() }));
+  const [early, setEarly] = useState<CandidatesView["candidates"]>([]);
   const cursor = useRef(initial.cursor);
   const started = useRef(false);
   const mounted = useRef(true);
@@ -54,6 +70,7 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
 
   const merge = useCallback((state: RunStateView) => {
     if (!mounted.current) return;
+    setStageSince((prev) => (prev.stage === state.run.stage ? prev : { stage: state.run.stage, at: Date.now() }));
     setRun(state.run);
     setCounters(state.counters);
     const fresh = state.events.filter((e) => e.id > cursor.current);
@@ -134,6 +151,22 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
     return () => clearInterval(timer);
   }, [run.status]);
 
+  // As soon as the clubs are designed, show them while they are still being scored.
+  const designed = run.status === "done" || stageIndex(run.stage) >= 3;
+  useEffect(() => {
+    if (!designed) return;
+    let cancelled = false;
+    void fetch(`/api/runs/${id}/candidates`)
+      .then((response) => (response.ok ? (response.json() as Promise<CandidatesView>) : null))
+      .then((view) => {
+        if (view && !cancelled) setEarly(view.candidates.slice(0, 4));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [designed, id, run.status]);
+
   const visible = events.slice(0, shown);
   const byStage = useMemo(() => {
     const groups = new Map<string, TraceView[]>();
@@ -145,6 +178,16 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
   const working = run.status === "pending" || run.status === "running";
   const elapsed = finished(run.status) ? counters.elapsedMs : Math.max(counters.elapsedMs, now - new Date(run.startedAt).getTime());
   const revealed = shown >= events.length;
+
+  const isDone = run.status === "done";
+  const stageElapsed = Math.max(0, (now - stageSince.at) / 1000);
+  const doneSeconds = STAGES.slice(0, Math.min(current, STAGES.length)).reduce((sum, st) => sum + EXPECTED_S[st.id], 0);
+  const inStage = working && current < STAGES.length ? Math.min(stageElapsed, EXPECTED_S[STAGES[current].id] * 0.95) : 0;
+  const percent = isDone ? 100 : Math.min(97, Math.round(((doneSeconds + inStage) / TOTAL_S) * 100));
+  const remaining = Math.max(3, TOTAL_S - doneSeconds - inStage);
+  const mood: EmberMood = run.status === "error" ? "oops" : isDone ? (replay ? "waving" : "cheering") : "thinking";
+  const stageNow = STAGES[Math.min(current, STAGES.length - 1)];
+  const headline = run.status === "error" ? "The run stopped early" : isDone ? "Your hidden clubs are ready" : `${stageNow.doing}...`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -160,13 +203,45 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
         </Banner>
       )}
 
-      <header>
-        <h1 className="text-[2.25rem]">{venue.name}</h1>
-        <p className="mt-1 text-ink-soft">
-          {VENUE_TYPE_LABEL[venue.venueType as keyof typeof VENUE_TYPE_LABEL] ?? venue.venueType} at {venue.matchedAddress ?? venue.address}. Planning for{" "}
-          {NIGHT_LABEL[venue.slowNight as keyof typeof NIGHT_LABEL] ?? venue.slowNight} nights.
-        </p>
-      </header>
+      <PageIntro
+        title={venue.name}
+        action={
+          isDone && revealed ? (
+            <Button href={`/runs/${id}/clubs`} variant="cta" className="text-lg">
+              See your hidden clubs
+            </Button>
+          ) : undefined
+        }
+      >
+        {VENUE_TYPE_LABEL[venue.venueType as keyof typeof VENUE_TYPE_LABEL] ?? venue.venueType} at {venue.matchedAddress ?? venue.address}, planning for{" "}
+        {NIGHT_LABEL[venue.slowNight as keyof typeof NIGHT_LABEL] ?? venue.slowNight} nights. We are reading what your city loves, what is within 1 km of your door and what your venue&apos;s crowd likes.
+      </PageIntro>
+
+      <section aria-label="Progress" className="relative flex flex-col gap-3 rounded-lg border-2 border-ink bg-card p-4 shadow-hard sm:flex-row sm:items-center sm:gap-6">
+        <div className="relative shrink-0 self-center">
+          <Ember mood={mood} size={76} />
+          {isDone && !replay && <SparkBurst />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-xl font-bold" role="status">
+            {headline}
+          </p>
+          <div
+            role="progressbar"
+            aria-label="Progress of the run"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            className="mt-2 h-4 overflow-hidden rounded-full border-2 border-ink bg-rule"
+          >
+            <div className="h-full rounded-full bg-tomato transition-[width] duration-700 ease-out" style={{ width: `${percent}%` }} />
+          </div>
+          <p className="mt-1 text-sm text-ink-soft">
+            {run.status === "error" ? "Everything found so far is kept." : isDone ? "All done." : `${percent}% done, ${timeLeft(remaining)}.`}
+          </p>
+        </div>
+        {working && <StageScene stage={stageNow.id} />}
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-[55fr_45fr]">
         <div className="order-2 flex flex-col gap-6 lg:order-1">
@@ -222,14 +297,20 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
             </p>
           )}
 
-          {run.status === "done" && revealed && (
-            <Card className="flex flex-col items-start gap-3 shadow-hard">
-              <h2 className="text-2xl">Your hidden clubs are ready</h2>
-              <p className="text-ink-soft">Each one comes with the Qloo calls that back it up.</p>
-              <Button href={`/runs/${id}/clubs`} variant="cta">
-                See your hidden clubs
-              </Button>
-            </Card>
+          {early.length > 0 && (
+            <section aria-labelledby="early-title" className="flex flex-col gap-3">
+              <h2 id="early-title" className="text-2xl">
+                {isDone ? "Your first ideas" : "First ideas, still being scored"}
+              </h2>
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {early.map((club, i) => (
+                  <li key={club.id} className="animate-pin rounded-lg border-2 border-ink bg-card p-3 shadow-hard" style={{ animationDelay: `${i * 90}ms`, ["--tilt" as string]: i % 2 ? "1deg" : "-1deg" }}>
+                    <p className="font-display text-lg font-bold leading-tight">{club.title}</p>
+                    <p className="mt-1 text-sm text-ink-soft">{club.score !== null ? `Score ${Math.round(club.score)}` : "Scoring..."}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
 
           {run.status === "error" && revealed && (
@@ -249,8 +330,13 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
         </div>
 
         <div className="order-1 flex flex-col gap-2 lg:order-2">
-          <div className="h-60 overflow-hidden rounded-md border-2 border-ink lg:sticky lg:top-4 lg:h-[26rem]">
+          <div className="relative h-60 overflow-hidden rounded-lg border-2 border-ink shadow-hard lg:sticky lg:top-4 lg:h-[26rem]">
             <VenueMapView lat={venue.lat} lon={venue.lon} radiusM={run.radiusM ?? 500} label={`Map around ${venue.name}`} />
+            {working && stageNow.id === "scout" && (
+              <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-[800] grid place-items-center">
+                <span className="h-44 w-44 animate-pulse-ring rounded-full border-4 border-tomato" />
+              </span>
+            )}
           </div>
           <p className="text-sm text-ink-soft">
             {run.radiusM ? `Scanning about ${run.radiusM >= 1000 ? `${run.radiusM / 1000} km` : `${run.radiusM} m`} around the venue.` : "The scan area appears once the agent starts reading the neighbourhood."}
@@ -259,6 +345,33 @@ export function RunView({ initial, replay = false }: { initial: RunStateView; re
       </div>
     </div>
   );
+}
+
+// A small picture of what the agent is doing right now. Short loops, still under reduced motion.
+function StageScene({ stage }: { stage: string }) {
+  if (stage === "design") {
+    return (
+      <div aria-hidden="true" className="hidden gap-2 sm:flex">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="h-12 w-9 animate-pin rounded-sm border-2 border-ink bg-card" style={{ animationDelay: `${i * 220}ms`, animationIterationCount: "infinite", animationDuration: "1.6s", ["--tilt" as string]: `${(i - 1) * 6}deg` }}>
+            <span className="mx-auto mt-1 block h-1.5 w-5 rounded-full bg-marigold" />
+          </span>
+        ))}
+      </div>
+    );
+  }
+  if (stage === "verify" || stage === "baseline") {
+    return (
+      <div aria-hidden="true" className="hidden w-24 flex-col gap-1.5 sm:flex">
+        {[70, 45, 85].map((w, i) => (
+          <span key={i} className="h-2.5 overflow-hidden rounded-full bg-rule">
+            <span className="block h-full animate-pop rounded-full bg-tomato" style={{ width: `${w}%`, animationDelay: `${i * 160}ms` }} />
+          </span>
+        ))}
+      </div>
+    );
+  }
+  return null;
 }
 
 function Node({ state }: { state: "waiting" | "active" | "done" }) {

@@ -7,6 +7,7 @@ import { Banner } from "./Banner";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Chip } from "./Chip";
+import { PageIntro } from "./PageIntro";
 import { StatTile } from "./StatTile";
 
 const POLL_MS = 5000;
@@ -98,26 +99,25 @@ export function LiveBoard({ clubId, clubTitle, initial, qr, checkInPath }: { clu
     <div className="flex flex-col gap-6">
       {board.session.simulated && <Banner variant="simulated">Simulated night for the sample venue. These guests are generated, not real people.</Banner>}
 
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.12em] text-ink-soft">Live night, session {board.session.number}</p>
-          <h1 className="text-[2.5rem]">{clubTitle}</h1>
-          <p className="text-ink-soft">
-            {longDate(board.session.date)}. Check-in is {open ? "open" : "closed"}.
-          </p>
-        </div>
-        <div className="flex items-center gap-4 rounded-md border-2 border-ink bg-card p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} alt="QR code for checking in" className="h-24 w-24" />
-          <div>
-            <p className="font-bold">Scan to check in</p>
-            <p className="font-poster text-3xl font-black tracking-widest">{board.session.checkInCode}</p>
-            <a href={checkInPath} className="text-sm">
-              Open the check-in page
-            </a>
+      <PageIntro
+        title={clubTitle}
+        aside={<p className="mt-1 text-sm font-bold uppercase tracking-[0.12em] text-ink-soft">Session {board.session.number}, {longDate(board.session.date)}. Check-in is {open ? "open" : "closed"}.</p>}
+        action={
+          <div className="flex items-center gap-4 rounded-lg border-2 border-ink bg-card p-3 shadow-hard">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qr} alt="QR code for checking in" className="h-24 w-24" />
+            <div>
+              <p className="font-bold">Scan to check in</p>
+              <p className="font-poster text-3xl font-extrabold tracking-widest">{board.session.checkInCode}</p>
+              <a href={checkInPath} className="text-sm">
+                Open the check-in page
+              </a>
+            </div>
           </div>
-        </div>
-      </header>
+        }
+      >
+        Tonight, as it happens: guests appear here as they check in, seated at tables by shared taste. Show this code or the poster, and tap Rebalance if the room changes.
+      </PageIntro>
 
       <section aria-label="Numbers" className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatTile value={board.checkedIn} label="Checked in" />

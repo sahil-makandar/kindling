@@ -7,7 +7,8 @@ import type { CheckInResult } from "@/src/checkin/checkIn";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Chip } from "./Chip";
-import { Spinner } from "./Spinner";
+import { Ember } from "./Ember";
+import { SparkBurst } from "./Sparks";
 
 type Hit = { id: string; name: string; domain: FavouriteDomain; hint: string | null };
 
@@ -203,9 +204,21 @@ export function CheckInFlow({
     return (
       <div className="mx-auto max-w-md">
         {header}
-        <Card className="flex flex-col items-start gap-3">
-          <Spinner label="Finding your people..." />
-          <p className="text-ink-soft">This takes a few seconds. If it takes too long we will let you sit anywhere tonight.</p>
+        <Card className="flex flex-col items-center gap-3 text-center" aria-busy="true">
+          <div aria-hidden="true" className="relative h-28 w-48">
+            <span className="absolute inset-x-6 bottom-2 h-9 rounded-full border-2 border-ink bg-peach" />
+            {["bg-tomato", "bg-sage", "bg-marigold"].map((colour, i) => (
+              <span
+                key={colour}
+                className={`absolute h-10 w-10 animate-bob rounded-full border-2 border-ink ${colour}`}
+                style={{ left: `${14 + i * 56}px`, top: i === 1 ? "4px" : "16px", animationDelay: `${i * 220}ms` }}
+              />
+            ))}
+          </div>
+          <p role="status" className="font-display text-xl font-bold">
+            Finding your people...
+          </p>
+          <p className="text-ink-soft">We are matching your three favourites with the room. This takes a few seconds. If it takes too long we will let you sit anywhere tonight.</p>
         </Card>
       </div>
     );
@@ -217,6 +230,11 @@ export function CheckInFlow({
       <div className="mx-auto max-w-md">
         {header}
         <section aria-live="polite" className="flex flex-col gap-5">
+          <div className="relative flex items-end gap-4">
+            <div className="relative shrink-0">
+              <Ember mood={seated ? "cheering" : "waving"} size={72} />
+              {seated && result.tablemates.length > 0 && <SparkBurst />}
+            </div>
           <div>
             {seated && result.table !== null ? (
               <p className="font-poster text-[5.5rem] font-black uppercase leading-[0.9] text-ember-ink">Table {result.table}</p>
@@ -224,6 +242,7 @@ export function CheckInFlow({
               <p className="font-display text-3xl">You are checked in.</p>
             )}
             <p className="mt-2 text-lg">{result.message}</p>
+          </div>
           </div>
 
           {result.tablemates.length > 0 && (
