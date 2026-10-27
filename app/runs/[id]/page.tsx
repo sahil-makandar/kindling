@@ -6,8 +6,9 @@ import { RunView } from "@/src/ui/RunView";
 
 export const dynamic = "force-dynamic";
 
-export default async function RunPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RunPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ replay?: string }> }) {
   const { id } = await params;
+  const { replay } = await searchParams;
   try {
     requireUuid(id);
   } catch {
@@ -15,5 +16,5 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   }
   const state = await getRunState(getDb(), id);
   if (!state) notFound();
-  return <RunView initial={state} />;
+  return <RunView initial={state} replay={replay === "1" && state.run.status === "done"} />;
 }

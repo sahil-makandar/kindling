@@ -235,3 +235,52 @@ describe("createClub", () => {
     await expect(createClub({ candidateId: "nope" }, repo)).rejects.toBeInstanceOf(ZodError);
   });
 });
+
+describe("the run cache", () => {
+  const match = { lat: 40.72, lon: -73.99, displayName: "100 Crosby St", alternatives: [] };
+
+  it("treats the same venue spelled differently as the same key, and a different night as another", async () => {
+    const { runCacheKey } = await import("@/src/runs/createRun");
+    const here = { lat: 40.72461, lon: -73.99731 };
+    expect(runCacheKey({ name: "  The  Slow Pour ", venueType: "cafe", slowNight: "tuesday" }, here)).toBe(runCacheKey({ name: "the slow pour", venueType: "cafe", slowNight: "tuesday" }, { lat: 40.72459, lon: -73.99729 }));
+    expect(runCacheKey({ name: "the slow pour", venueType: "cafe", slowNight: "monday" }, here)).not.toBe(runCacheKey({ name: "the slow pour", venueType: "cafe", slowNight: "tuesday" }, here));
+  });
+
+  it("reuses a finished run without starting a new one or spending the allowance", async () => {
+    const { d, saved } = deps(match);
+    let allowance = 0;
+    const created = await createRun(valid, { ...d, findCached: async () => ({ runId: "old-run", venueId: "old-venue" }), beforeCreate: async () => void (allowance += 1) });
+    expect(created).toMatchObject({ runId: "old-run", cached: true });
+    expect(saved).toEqual([]);
+    expect(allowance).toBe(0);
+  });
+
+  it("spends the allowance just before saving a new run, and saves nothing when the limit is hit", async () => {
+    const { d, saved } = deps(match);
+    const order: string[] = [];
+    const created = await createRun(valid, {
+      ...d,
+      findCached: async () => null,
+      beforeCreate: async () => void order.push("allowance"),
+      save: async (args) => {
+        order.push("save");
+        saved.push(args);
+        return { runId: "new-run", venueId: "v" };
+      },
+    });
+    expect(created).toMatchObject({ runId: "new-run", cached: false });
+    expect(order).toEqual(["allowance", "save"]);
+
+    const blocked = deps(match);
+    await expect(
+      createRun(valid, {
+        ...blocked.d,
+        findCached: async () => null,
+        beforeCreate: async () => {
+          throw new HttpError(429, "Limit reached.");
+        },
+      }),
+    ).rejects.toMatchObject({ status: 429 });
+    expect(blocked.saved).toEqual([]);
+  });
+});

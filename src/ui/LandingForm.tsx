@@ -88,9 +88,9 @@ export function LandingForm() {
     setSubmitting(true);
     try {
       const response = await fetch("/api/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data) });
-      const body = (await response.json().catch(() => ({}))) as { runId?: string; error?: string };
+      const body = (await response.json().catch(() => ({}))) as { runId?: string; cached?: boolean; error?: string };
       if (response.ok && body.runId) {
-        router.push(`/runs/${body.runId}`);
+        router.push(`/runs/${body.runId}${body.cached ? "?replay=1" : ""}`);
         return;
       }
       setProblem(body.error ?? "Something went wrong. Please try again.");

@@ -28,15 +28,22 @@ function seconds(ms: number): string {
   return total < 60 ? `${total}s` : `${Math.floor(total / 60)}m ${String(total % 60).padStart(2, "0")}s`;
 }
 
+function ago(iso: string, now: number): string {
+  const minutes = Math.max(1, Math.round((now - new Date(iso).getTime()) / 60000));
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+}
+
 type Advance = { state: RunStateView | null; reason: string | null };
 
 // The live run. It asks the server to run one stage at a time, polls for new trace lines while a stage works, and shows
 // them one by one. Refreshing the page picks the run up where it is: the server knows which stage is next.
-export function RunView({ initial }: { initial: RunStateView }) {
+export function RunView({ initial, replay = false }: { initial: RunStateView; replay?: boolean }) {
   const [run, setRun] = useState(initial.run);
   const [counters, setCounters] = useState(initial.counters);
   const [events, setEvents] = useState<TraceView[]>(initial.events);
-  const [shown, setShown] = useState(initial.run.status === "done" ? initial.events.length : 0);
+  const [shown, setShown] = useState(initial.run.status === "done" && !replay ? initial.events.length : 0);
   const [now, setNow] = useState(() => Date.now());
   const [connection, setConnection] = useState<string | null>(null);
   const cursor = useRef(initial.cursor);
@@ -114,9 +121,12 @@ export function RunView({ initial }: { initial: RunStateView }) {
   useEffect(() => {
     if (shown >= events.length) return;
     const behind = events.length - shown;
-    const timer = setTimeout(() => setShown((n) => Math.min(events.length, n + (behind > 12 ? 3 : 1))), behind > 12 ? 60 : 130);
+    // A replay of a finished run moves faster than a live one, since the work is already done.
+    const step = replay ? 2 : behind > 12 ? 3 : 1;
+    const delay = replay ? 70 : behind > 12 ? 60 : 130;
+    const timer = setTimeout(() => setShown((n) => Math.min(events.length, n + step)), delay);
     return () => clearTimeout(timer);
-  }, [shown, events.length]);
+  }, [shown, events.length, replay]);
 
   useEffect(() => {
     if (finished(run.status)) return;
@@ -141,6 +151,12 @@ export function RunView({ initial }: { initial: RunStateView }) {
       {run.qlooMode === "fixtures" && (
         <Banner variant="fixture" className="-mx-4 sm:-mx-6">
           Sample data mode: Qloo answers come from hand-written examples, not the live API.
+        </Banner>
+      )}
+
+      {replay && (
+        <Banner variant="simulated">
+          Replay: this venue was already read {ago(initial.run.startedAt, now)}, so the saved run is shown again instead of spending more Qloo calls. Every line below is from that run.
         </Banner>
       )}
 
