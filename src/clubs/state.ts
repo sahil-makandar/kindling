@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
 import type { Db } from "@/src/db/client";
-import { candidates, clubs, venues } from "@/src/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
+import { candidates, clubs, signals, venues } from "@/src/db/schema";
 import type { ClubKit } from "@/src/agent/producer/kit";
 import type { PoolRef } from "@/src/agent/designer/candidates";
 import type { VenueView } from "@/src/runs/state";
@@ -18,6 +18,8 @@ export type ClubView = {
   anchor: PoolRef | null;
   companions: PoolRef[];
   sessions: SessionView[];
+  // How strongly the area favours each thing the club is built from and each playlist artist (Qloo affinity, when known).
+  affinities: Record<string, number>;
   qlooMode: "fixtures" | "live" | "record" | null;
 };
 
@@ -55,6 +57,15 @@ export async function getClub(db: Db, clubId: string): Promise<ClubView | null> 
     anchor: (candidate?.anchor as PoolRef | undefined) ?? null,
     companions: (candidate?.companions as PoolRef[] | undefined) ?? [],
     sessions: (await listSessions(db, clubId)).map(toSessionView),
+    affinities: await affinitiesFor(db, club.runId, [...(candidate ? [(candidate.anchor as PoolRef).id, ...(candidate.companions as PoolRef[]).map((c) => c.id)] : []), ...((club.kit as ClubKit | null)?.playlist.map((p) => p.refId) ?? [])]),
     qlooMode,
   };
+}
+
+async function affinitiesFor(db: Db, runId: string | null, refIds: string[]): Promise<Record<string, number>> {
+  if (!runId || refIds.length === 0) return {};
+  const rows = await db.select({ refId: signals.refId, affinity: signals.affinity }).from(signals).where(and(eq(signals.runId, runId), inArray(signals.refId, refIds)));
+  const out: Record<string, number> = {};
+  for (const row of rows) if (row.affinity !== null) out[row.refId] = row.affinity;
+  return out;
 }

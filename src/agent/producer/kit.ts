@@ -19,8 +19,6 @@ function clip(text: string, max: number): string {
   return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), Math.floor(max / 2))).replace(/[,;:]$/, "")}.`;
 }
 
-const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
-
 // What the model writes. Everything the page prints is bounded here, and the code trims what slips past.
 export const rawKitSchema = z.object({
   clubName: z.string().min(2).max(60),

@@ -94,11 +94,35 @@ dialog.drawer::backdrop {
   }
 }
 
+/* Printing shows only the poster or table tent: one clean A4 page, no app chrome. The poster is taken out of the flow
+   and the body is cut to one page, so nothing else can spill onto a second sheet. */
 @media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  html,
+  body {
+    height: 297mm;
+    overflow: hidden;
+    background: #fff;
+  }
+  body * {
+    visibility: hidden;
+  }
+  [data-poster],
+  [data-poster] * {
+    visibility: visible;
+  }
+  [data-poster] {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    max-width: none;
+    border: 0;
+  }
   .no-print {
     display: none !important;
-  }
-  body {
-    background: #fff;
   }
 }
