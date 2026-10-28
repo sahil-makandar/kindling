@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createGeocoder, GeocodeError, type GeocoderDeps } from "@/src/geo/geocode";
+import { createGeocoder, GeocodeError, rankByPlace, type GeocoderDeps } from "@/src/geo/geocode";
 import { createMemoryGeocodeStore } from "@/src/geo/store";
 import { createPacer } from "@/src/lib/pacer";
 
@@ -213,5 +213,19 @@ describe("createPacer", () => {
     await all;
     expect(starts[1] - starts[0]).toBeGreaterThanOrEqual(500);
     expect(starts[2] - starts[1]).toBeGreaterThanOrEqual(500);
+  });
+});
+
+describe("rankByPlace", () => {
+  const manhattan = { displayName: "100, Crosby Street, SoHo, Manhattan, New York County, City of New York, New York, 10012, United States" };
+  const hornell = { displayName: "100, Crosby Street, City of Hornell, Steuben County, New York, 14843, United States" };
+
+  it("puts the city the person typed ahead of a small town in the same state", () => {
+    expect(rankByPlace("100 Crosby St, New York, NY", [hornell, manhattan])[0]).toBe(manhattan);
+  });
+
+  it("keeps Nominatim's order when nothing separates the matches or no city was typed", () => {
+    expect(rankByPlace("100 Crosby St", [hornell, manhattan])[0]).toBe(hornell);
+    expect(rankByPlace("1 Main St, Springfield", [hornell, manhattan])[0]).toBe(hornell);
   });
 });

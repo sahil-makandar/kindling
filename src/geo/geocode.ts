@@ -62,6 +62,17 @@ function cacheKey(address: string): string {
   return createHash("sha256").update(`nominatim:search:${normal}`).digest("hex");
 }
 
+// Nominatim can put a small town first when the query names a big city ("100 Crosby St, New York, NY" finds Hornell, a
+// town in New York State, before Manhattan). The place the person typed after the street is the city, so the match whose
+// name mentions it in the most parts (city, county, borough) comes first. Ties keep Nominatim's order.
+export function rankByPlace<T extends { displayName: string }>(address: string, candidates: T[]): T[] {
+  const parts = address.split(",").map((p) => p.trim().toLowerCase()).filter(Boolean);
+  const place = parts.length > 1 ? parts[1] : "";
+  if (!place || place.length < 3 || /^\d+$/.test(place)) return candidates;
+  const score = (c: T) => c.displayName.toLowerCase().split(",").filter((part) => part.includes(place)).length;
+  return candidates.map((c, i) => ({ c, i, s: score(c) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.c);
+}
+
 export function createGeocoder(deps: GeocoderDeps) {
   const doFetch = deps.fetch ?? fetch;
   const now = deps.now ?? Date.now;
@@ -115,7 +126,7 @@ export function createGeocoder(deps: GeocoderDeps) {
       if (parsed.data.length > 0) throw new GeocodeError("The address lookup sent a reply we could not read.");
       return null;
     }
-    const [best, ...alternatives] = candidates;
+    const [best, ...alternatives] = rankByPlace(address, candidates);
     return { ...best, alternatives };
   }
 
