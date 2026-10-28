@@ -52,12 +52,11 @@ describe("geocode", () => {
   it("returns the first match plus the other places it considered", async () => {
     const { geocoder } = setup();
     const result = await geocoder.geocode("100 Crosby St, New York");
-    expect(result?.displayName).toContain("Hornell");
-    expect(result?.alternatives.map((a) => a.displayName)).toEqual([
-      expect.stringContaining("Manhattan"),
-      expect.stringContaining("Newark"),
-    ]);
-    expect(result?.alternatives[0].lat).toBeCloseTo(40.724, 2);
+    // Hornell is Nominatim's first match, but the person typed New York, so Manhattan comes first.
+    expect(result?.displayName).toContain("Manhattan");
+    expect(result?.lat).toBeCloseTo(40.724, 2);
+    expect(result?.alternatives.map((a) => a.displayName)).toEqual(expect.arrayContaining([expect.stringContaining("Hornell"), expect.stringContaining("Newark")]));
+    expect(result?.alternatives).toHaveLength(2);
   });
 
   it("asks for five jsonv2 candidates and sends the identifying User-Agent", async () => {
@@ -90,7 +89,7 @@ describe("cache", () => {
     await vi.advanceTimersByTimeAsync(10);
     await first;
     const again = await geocoder.geocode("  100  CROSBY st, new york ");
-    expect(again?.lat).toBeCloseTo(42.3175829, 4);
+    expect(again?.lat).toBeCloseTo(40.724, 2);
     expect(again?.alternatives).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
