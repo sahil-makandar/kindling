@@ -53,7 +53,7 @@ const envSchema = z
     ANTHROPIC_API_KEY: z.string().min(1).optional(),
 
     APP_URL: z.url().default("http://localhost:3000"),
-    RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(30),
     // Set by Vercel. Used only to refuse local-only settings on the hosted app.
     VERCEL: z.string().optional(),
     NOMINATIM_USER_AGENT: z

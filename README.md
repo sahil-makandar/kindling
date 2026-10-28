@@ -131,7 +131,7 @@ The defaults (`QLOO_MODE=fixtures`, `LLM_MODE=mock`) need no API keys. The app s
 | `LLM_MODE` | Always | `mock` (canned) or `live` |
 | `LLM_PROVIDER`, `LLM_FALLBACK_PROVIDERS`, `LLM_MODEL`, `LLM_MODEL_FAST` | `live` | `google` or `openai-compatible` (Groq is supported but not in the default chain); models come from the environment, never the code |
 | `GOOGLE_GENERATIVE_AI_API_KEY`, `GROQ_API_KEY`, `OPENAI_COMPATIBLE_*` | `live` | Only the providers you use |
-| `RATE_LIMIT_PER_HOUR` | Optional | Runs per IP per hour, default 10 |
+| `RATE_LIMIT_PER_HOUR` | Optional | New runs per IP per hour, default 30. Reused runs never count |
 | `NOMINATIM_USER_AGENT` | Optional | Identifies the app to Nominatim |
 
 ```bash

@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { PRESETS, type Preset } from "@/src/runs/presets";
 import { NIGHTS, NIGHT_LABEL, VENUE_TYPES, VENUE_TYPE_LABEL, createRunSchema } from "@/src/runs/schema";
 import { Button } from "./Button";
 import { Card } from "./Card";
+import { Ember } from "./Ember";
 import { cx } from "./cx";
 import { PinPickerView } from "./PinPickerLoader";
 import { Spinner } from "./Spinner";
@@ -51,6 +53,8 @@ export function LandingForm() {
   const [addressMissing, setAddressMissing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // Set when the hourly allowance is used up, to show a friendly note with a way forward.
+  const [limited, setLimited] = useState<string | null>(null);
 
   function set<K extends keyof Fields>(key: K, value: string) {
     setFields((f) => ({ ...f, [key]: value }));
@@ -75,6 +79,7 @@ export function LandingForm() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     setProblem(null);
+    setLimited(null);
 
     const headcount = fields.headcount.trim() === "" ? undefined : Number(fields.headcount);
     const parsed = createRunSchema.safeParse({
@@ -104,6 +109,11 @@ export function LandingForm() {
         return;
       }
       if (response.status === 422) setAddressMissing(true);
+      if (response.status === 429) {
+        setLimited(body.error ?? "You have used up this hour's allowance.");
+        setSubmitting(false);
+        return;
+      }
       setProblem(body.error ?? "Something went wrong. Please try again.");
     } catch {
       setProblem("We could not reach the server. Check your connection and try again.");
@@ -185,6 +195,21 @@ export function LandingForm() {
             className={control}
           />
         </Field>
+
+        {limited && (
+          <div role="alert" className="flex items-center gap-4 rounded-lg border-2 border-ink bg-peach p-4">
+            <Ember mood="oops" size={56} />
+            <div>
+              <p className="font-bold">Ember needs a breather</p>
+              <p className="mt-1 text-sm">{limited}</p>
+              <p className="mt-2">
+                <Link href="/sample" className="font-bold">
+                  Explore the sample venue, The Lantern Room
+                </Link>
+              </p>
+            </div>
+          </div>
+        )}
 
         {problem && (
           <p role="alert" className="rounded-md border-2 border-tomato bg-card p-3 font-bold">

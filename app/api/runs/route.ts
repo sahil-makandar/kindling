@@ -24,7 +24,7 @@ export function POST(request: Request) {
       const limit = await checkRateLimit(createDbRateStore(db), `run:${clientIp(request.headers)}`, env.RATE_LIMIT_PER_HOUR);
       if (!limit.allowed) {
         const minutes = Math.ceil(limit.retryAfterSeconds / 60);
-        throw new HttpError(429, `You have started ${limit.limit} runs this hour, which is the limit for the free demo. Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.`, {
+        throw new HttpError(429, `You have read ${limit.limit} neighbourhoods this hour, which is as many as this free site can do for one visitor. You can try again in about ${minutes} minute${minutes === 1 ? "" : "s"}, and the sample venue is open in the meantime.`, {
           retryAfterSeconds: limit.retryAfterSeconds,
         });
       }

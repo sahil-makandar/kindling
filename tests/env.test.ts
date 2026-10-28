@@ -25,7 +25,7 @@ describe("parseEnv", () => {
     const env = parseEnv(base);
     expect(env.QLOO_BASE_URL).toBe("https://hackathon.api.qloo.com");
     expect(env.LLM_PROVIDER).toBe("google");
-    expect(env.RATE_LIMIT_PER_HOUR).toBe(10);
+    expect(env.RATE_LIMIT_PER_HOUR).toBe(30);
     expect(env.APP_URL).toBe("http://localhost:3000");
     expect(env.NOMINATIM_USER_AGENT).toContain("github.com");
   });
@@ -33,7 +33,7 @@ describe("parseEnv", () => {
   it("treats blank values from .env files as not set", () => {
     const env = parseEnv({ ...base, QLOO_API_KEY: "", RATE_LIMIT_PER_HOUR: "", LLM_FALLBACK_PROVIDERS: "" });
     expect(env.QLOO_API_KEY).toBeUndefined();
-    expect(env.RATE_LIMIT_PER_HOUR).toBe(10);
+    expect(env.RATE_LIMIT_PER_HOUR).toBe(30);
     expect(env.LLM_FALLBACK_PROVIDERS).toEqual([]);
   });
 

@@ -22,7 +22,7 @@ Set these in Vercel under Project, Settings, Environment Variables, for the Prod
 | `DATABASE_URL` | Neon pooled connection string | Secret. All migrations must be applied. |
 | `APP_URL` | `https://kindling-sand-eight.vercel.app` | Used for QR code links. |
 | `NOMINATIM_USER_AGENT` | `Kindling/1.0 (https://github.com/sahil-makandar/kindling)` | Required by the Nominatim usage policy. |
-| `RATE_LIMIT_PER_HOUR` | `10` | Agent runs per visitor per hour. |
+| `RATE_LIMIT_PER_HOUR` | `30` | New agent runs per visitor per hour. Reused runs (the example venues, a venue read in the last 24 hours) never count. |
 
 ## Region
 
