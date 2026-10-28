@@ -59,7 +59,7 @@ const cachedEntry = z.union([
 
 function cacheKey(address: string): string {
   const normal = address.trim().toLowerCase().replace(/\s+/g, " ");
-  return createHash("sha256").update(`nominatim:search:${normal}`).digest("hex");
+  return createHash("sha256").update(`nominatim:search:v2:${normal}`).digest("hex");
 }
 
 // Nominatim can put a small town first when the query names a big city ("100 Crosby St, New York, NY" finds Hornell, a

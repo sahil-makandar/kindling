@@ -117,7 +117,7 @@ describe("cache", () => {
   it("ignores a damaged cache entry and looks the address up", async () => {
     const { geocoder, store, fetchMock } = setup();
     const { createHash } = await import("node:crypto");
-    const key = createHash("sha256").update("nominatim:search:100 crosby st").digest("hex");
+    const key = createHash("sha256").update("nominatim:search:v2:100 crosby st").digest("hex");
     await store.set(key, { garbage: true }, new Date(Date.now() + 1e9));
     const result = await geocoder.geocode("100 Crosby St");
     expect(result?.lat).toBeCloseTo(42.3175829, 4);
