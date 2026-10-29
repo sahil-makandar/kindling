@@ -4,7 +4,7 @@ import { rateLimits } from "@/src/db/schema";
 import { HttpError } from "./http";
 
 // A fixed-window limit per key (for example per IP address), kept in the database so it holds across serverless
-// instances (CLAUDE.md section 9).
+// instances.
 
 export type RateStore = {
   // Adds one to the key's count for this window and returns the new count.

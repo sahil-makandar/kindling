@@ -1,4 +1,4 @@
-// The simulated history of the demo venue (N5). Four past nights with 9, 13, 16 and 21 check-ins, of which 0, 4, 7
+// The simulated history of the sample venue. Four past nights with 9, 13, 16 and 21 check-ins, of which 0, 4, 7
 // and 10 had been before. Everything built from this is stored with simulated = true and labelled on screen.
 
 export type DemoNight = { total: number; returning: string[] };

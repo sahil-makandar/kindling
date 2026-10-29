@@ -1,6 +1,6 @@
 import { cosine, type TasteVector } from "@/src/seating/tasteVector";
 
-// The Coach's deterministic half (PRODUCT_SPEC 5.6): the signals and the decision. All pure. The language model only
+// The Coach's deterministic half (): the signals and the decision. All pure. The language model only
 // writes the variant and the wording; it never decides keep, tweak or switch.
 
 export type SessionStats = {

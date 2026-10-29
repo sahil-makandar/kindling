@@ -3,7 +3,7 @@ import { z } from "zod";
 import { SCOUT_DOMAINS } from "./plan";
 import type { ScoutRun } from "./scout";
 
-// The seven tools the model can call (PRODUCT_SPEC section 4). They only forward to ScoutRun, which owns the
+// The seven tools the model can call. They only forward to ScoutRun, which owns the
 // budget, the repeat rules and the trace. The model must give a reason for every call, and that reason goes
 // into the trace so the page can show why the Scout chose each step.
 

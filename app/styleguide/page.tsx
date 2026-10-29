@@ -28,7 +28,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function StyleguidePage() {
-  // Dev only. Judges never see this page.
+  // Dev only: a reference page for the design tokens and components.
   if (process.env.NODE_ENV === "production") notFound();
 
   return (

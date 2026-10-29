@@ -1,5 +1,5 @@
 // Run with: npm run lint:copy
-// Checks app/, src/ and README.md against the writing rules in CLAUDE.md section 10.
+// Checks app/, src/ and README.md against the writing rules (no dashes, no banned words, no AI attribution).
 import { scanPaths } from "./copy-lint";
 
 const { violations, fileCount } = scanPaths(["app", "src", "README.md"], process.cwd());

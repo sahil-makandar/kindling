@@ -59,7 +59,7 @@ const envSchema = z
     NOMINATIM_USER_AGENT: z
       .string()
       .min(1)
-      .default(`${APP_NAME.toLowerCase()}-hackathon/0.1 (+${REPO_URL})`),
+      .default(`${APP_NAME.toLowerCase()}/0.1 (+${REPO_URL})`),
   })
   .superRefine((env, ctx) => {
     const need = (key: keyof typeof env, why: string) => {

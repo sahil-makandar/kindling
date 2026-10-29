@@ -2,7 +2,7 @@ import { DOMAIN_LABEL } from "../scout/plan";
 import { NAMING_RULES } from "../naming";
 import { CLUB_FORMATS, type PromptView } from "../designer/candidates";
 
-// The Designer's prompts (PRODUCT_SPEC section 9). The model sees short aliases and compact lines, never raw Qloo
+// The Designer's prompts. The model sees short aliases and compact lines, never raw Qloo
 // data, and cites aliases back. No personal data: only the venue's business name, type and city.
 
 export const DESIGNER_SYSTEM = [

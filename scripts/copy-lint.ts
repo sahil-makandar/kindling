@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-// Writing rules from CLAUDE.md section 10: no em or en dashes, none of the banned words, and no AI
+// Writing rules for the copy: no em or en dashes, none of the banned words, and no AI
 // attribution lines in anything we ship. A line can opt out with the marker `lint-copy-ignore`,
 // for the rare literal use (for example the word "journey" about a real trip).
 

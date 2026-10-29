@@ -1,6 +1,6 @@
 import type { ScoutVenue } from "../scout/scout";
 
-// The Scout's prompts (PRODUCT_SPEC section 9). Plain English, no personal data: only the venue's business
+// The Scout's prompts. Plain English, no personal data: only the venue's business
 // name, its type and its city go to the model.
 
 export function scoutSystemPrompt(args: { budget: number; venueType: string }): string {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Response shapes as measured in the live spike (docs/QLOO_API.md section 8). Everything is loose (unknown
+// Response shapes as measured in the live spike. Everything is loose (unknown
 // fields are kept) and optional, so a surprise in the real API becomes a warning in the trace, not a crash.
 // The rest of the code only sees the normalised types below, never raw Qloo field names.
 

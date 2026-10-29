@@ -1,6 +1,6 @@
 import type { Decision } from "@/src/coach/signals";
 
-// The Coach's prompts (PRODUCT_SPEC section 9). The model receives numbers and tag names for the whole room, never a
+// The Coach's prompts. The model receives numbers and tag names for the whole room, never a
 // person's name or their individual picks, and it does not decide: the decision arrives already made.
 
 export const COACH_SYSTEM = [

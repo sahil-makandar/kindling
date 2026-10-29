@@ -2,7 +2,7 @@ import catalogueJson from "@/fixtures/sample/catalogue.json";
 import locationsJson from "@/fixtures/sample/locations.json";
 
 // Offline stand-in for the Qloo API (QLOO_MODE=fixtures). It builds responses in the shape the live API uses
-// (measured in the live spike, docs/QLOO_API.md section 8) from two hand-written files in fixtures/sample/.
+// (measured against the live API) from two hand-written files in fixtures/sample/.
 // The data is sample data, not Qloo output, and the UI shows a banner whenever it is in use.
 // It also copies the real API's quirks: a place id is not a valid taste signal for films or music (400), and
 // video_game is not supported.

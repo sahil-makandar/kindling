@@ -1,4 +1,4 @@
-// Live probe of the Qloo API (BUILD_PLAN Q1). Run with: npm run qloo:spike
+// Live probe of the Qloo API. Run with: npm run qloo:spike
 // Calls every capability Kindling relies on for the four spike locations and prints a compact table.
 // Raw responses are saved to fixtures/live/, which is git-ignored: Qloo response data must never be committed.
 // The API key is read from the environment and only ever sent as a header; it is never printed.

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { PoolSignal } from "../scout/pool";
 
-// The "Without Qloo" comparison (CLAUDE.md section 11): the same question put to a language model that has no Qloo data,
+// The "Without Qloo" comparison: the same question put to a language model that has no Qloo data,
 // answered by a real model call. The verdict is computed by code from what the model wrote, never written by hand.
 
 export const baselineSchema = z.object({

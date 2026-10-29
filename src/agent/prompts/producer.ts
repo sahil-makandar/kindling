@@ -2,7 +2,7 @@ import { FORMAT_LABEL } from "../designer/candidates";
 import { NAMING_RULES } from "../naming";
 import type { KitContext } from "../producer/kit";
 
-// The Producer's prompts (PRODUCT_SPEC section 9). The model sees the chosen club's names and the venue's business
+// The Producer's prompts. The model sees the chosen club's names and the venue's business
 // facts only. It never sees attendee data, and it cannot add anything to the playlist: the code picks that.
 
 export const PRODUCER_SYSTEM = [

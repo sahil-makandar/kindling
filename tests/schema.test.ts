@@ -2,7 +2,7 @@ import { getTableName, isTable, type Table } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import * as schema from "@/src/db/schema";
 
-// Table names from docs/PRODUCT_SPEC.md section 7, plus geocode_cache (BUILD_PLAN F4) and llm_outputs (A3).
+// Table names the app depends on.
 const expected = [
   "venues",
   "runs",

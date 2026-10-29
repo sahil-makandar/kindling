@@ -1,6 +1,6 @@
 import type { QlooTag } from "@/src/qloo/schemas";
 
-// A guest's taste, as a short list of weighted tags (PRODUCT_SPEC 5.5). Tags are matched by name, not id, because Qloo
+// A guest's taste, as a short list of weighted tags (). Tags are matched by name, not id, because Qloo
 // gives the same name different ids in different domains ("Comedy" for films and for shows).
 
 export type TasteTag = { key: string; name: string; weight: number };

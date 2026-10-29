@@ -10,7 +10,7 @@ import {
   type QlooTag,
 } from "./schemas";
 
-// Typed helpers over the Qloo REST endpoints (docs/QLOO_API.md section 3). Each one returns
+// Typed helpers over the Qloo REST endpoints. Each one returns
 // normalised items, any parse warnings (for the trace), and the id of the logged call.
 
 export type Endpoints = ReturnType<typeof createEndpoints>;
@@ -23,7 +23,7 @@ export type EntityDomain = "artist" | "movie" | "tv_show" | "book" | "podcast" |
 export type GeoArea = { lon: number; lat: number; radiusM: number };
 
 // An area is a point with a radius, or, as the last resort when data is thin, a whole city by name.
-// Neighbourhood names do not work as city queries (docs/QLOO_API.md section 4), so only use this with a city.
+// Neighbourhood names do not work as city queries, so only use this with a city.
 export type AreaSpec = GeoArea | { city: string };
 
 export type EndpointResult<T> = Parsed<T> & {

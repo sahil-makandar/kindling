@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Tokens from docs/DESIGN_SYSTEM.md. Light only, warm, flat colour. */
+/* Design tokens. Light only, warm, flat colour. */
 @theme {
   --color-paper: #fff7ec;
   --color-card: #fffcf6;

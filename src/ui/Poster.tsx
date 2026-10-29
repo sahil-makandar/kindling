@@ -1,6 +1,6 @@
 import type { ClubKit } from "@/src/agent/producer/kit";
 
-// The printable poster (DESIGN_SYSTEM "Poster spec"). Everything scales with the poster's own width (cqw units), so the
+// The printable poster . Everything scales with the poster's own width (cqw units), so the
 // same markup is the on-screen preview, the printed A4 page and the PNG export.
 
 export function listOf(names: string[]): string {

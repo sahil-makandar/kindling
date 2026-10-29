@@ -1,6 +1,6 @@
 import { similarity, type Person } from "./tasteVector";
 
-// Seating (PRODUCT_SPEC 5.5). Pure and deterministic: the same people give the same tables, with ties broken by id.
+// Seating (). Pure and deterministic: the same people give the same tables, with ties broken by id.
 
 export const MIN_TABLE_SIZE = 3;
 export const MAX_TABLE_SIZE = 6;

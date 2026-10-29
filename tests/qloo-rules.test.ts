@@ -5,7 +5,7 @@ import { parseEnv } from "@/src/config/env";
 import { createQlooClient, QlooError, type QlooClientDeps } from "@/src/qloo/client";
 import { createMemoryStore } from "@/src/qloo/store";
 
-// Rules from the official hackathon developer guide (docs/QLOO_API.md section 0).
+// Rules for talking to the Qloo API.
 
 const ctx = { purpose: "scout.area_entities" as const };
 const ok = () => new Response(JSON.stringify({ results: { entities: [] } }), { status: 200 });

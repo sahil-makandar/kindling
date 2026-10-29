@@ -9,7 +9,7 @@ import { fixtureResponse } from "./fixtures";
 import { countResults } from "./schemas";
 import { createDbStore, type QlooStore } from "./store";
 
-// The only place that talks to Qloo. Everything else goes through qlooGet (see docs/QLOO_API.md).
+// The only place that talks to Qloo. Everything else goes through qlooGet.
 
 export type QlooMode = "fixtures" | "live" | "record";
 

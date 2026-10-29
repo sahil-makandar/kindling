@@ -17,7 +17,7 @@ import { createDbRunWriter, createRun } from "@/src/runs/createRun";
 import { toVector } from "@/src/seating/tasteVector";
 import { nicknameFor, pickFavouriteIds, pickRoomFavourites, planNights } from "./plan";
 
-// Builds the demo venue (N5): a fictional venue, a real agent run, a club from the top pick and four simulated past
+// Builds the sample venue: a fictional venue, a real agent run, a club from the top pick and four simulated past
 // nights seated by the real seating code. Every simulated row is marked simulated = true, and the pages say so.
 // The language model must really answer for the design, the comparison, the kit and the Coach, so each of those is
 // retried when the free tier is busy, and the script says so plainly if it still could not.

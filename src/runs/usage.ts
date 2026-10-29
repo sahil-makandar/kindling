@@ -11,7 +11,7 @@ export const QLOO_USES: readonly QlooUse[] = [
   { purpose: "locate.venue", endpoint: "/search", filter: "place", stage: "Locate", why: "Finds your venue on Qloo, so its own tags and crowd are known." },
   { purpose: "scout.area_entities", endpoint: "/v2/insights", filter: "film, music, TV, books, podcasts near the venue", stage: "Scout", why: "What people around the address love in each domain. Run twice per domain: the biggest names and the more local ones." },
   { purpose: "scout.area_tags", endpoint: "/v2/insights", filter: "tags near the venue", stage: "Scout", why: "The vibe of the area's places, used as the language of the neighbourhood." },
-  { purpose: "scout.similar_venues", endpoint: "/v2/insights", filter: "places like yours", stage: "Scout", why: "What the crowds of similar venues love, which is who your venue attracts today." },
+  { purpose: "scout.similar_venues", endpoint: "/v2/insights", filter: "places like yours", stage: "Scout", why: "Venues like yours nearby. Their tags describe the kind of crowd your venue draws." },
   { purpose: "scout.trending", endpoint: "/v2/insights", filter: "trending entities near the venue", stage: "Scout", why: "What is rising in the area right now, which feeds the momentum part of the score." },
   { purpose: "scout.places", endpoint: "/v2/insights", filter: "places near the venue", stage: "Scout", why: "Nearby places that match the area's taste, to pair a club with a menu or a neighbour." },
   { purpose: "verify.coherence", endpoint: "/v2/insights", filter: "score list", stage: "Verify", why: "Checks that the anchor and its companions really belong together, with a separate call per club." },

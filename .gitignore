@@ -55,3 +55,18 @@ fixtures/live/
 # local scratch scripts (live checks with real queries)
 scripts/_*.ts
 shots/
+
+# private planning notes and local tooling files (kept on this machine only)
+CLAUDE.md
+AGENTS.md
+.claude/
+PROGRESS.md
+START_HERE.md
+VIDEO_SCRIPT.md
+DEMO.md
+docs/HACKATHON_CONTEXT.md
+docs/BUILD_PLAN.md
+docs/SUBMISSION.md
+docs/PRODUCT_SPEC.md
+docs/DESIGN_SYSTEM.md
+docs/QLOO_API.md

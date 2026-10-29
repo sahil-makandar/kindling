@@ -2,7 +2,7 @@ import { DOMAIN_LABEL, planFor, SCOUT_DOMAINS, type ScoutDomain } from "../scout
 import type { PoolSignal } from "../scout/pool";
 import { friendlyName, isColdName } from "../naming";
 
-// The Designer's pure logic (PRODUCT_SPEC section 5.1). The model proposes "hidden clubs", each built on things the
+// The Designer's pure logic. The model proposes "hidden clubs", each built on things the
 // Scout actually found. To make invented ids impossible, the model never sees Qloo ids: it sees short aliases (m1, a3,
 // l2) and cites those, and this file maps them back to real pool signals and drops anything that does not resolve.
 

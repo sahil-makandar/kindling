@@ -15,7 +15,7 @@ export type BaselineDeps = {
 const MOCK_IDEAS = ["Weekly open mic night", "Trivia night with prizes", "Live acoustic music evening"];
 
 // The "Without Qloo" panel: a real model call with no Qloo data. If no model answers, nothing is saved, because a
-// hand-written comparison would be a strawman (CLAUDE.md section 11).
+// hand-written comparison would be a strawman.
 export function createBaselineStage(deps: BaselineDeps): StageFn {
   return async ({ run, trace }) => {
     const venue = await deps.getVenue(run.venueId);

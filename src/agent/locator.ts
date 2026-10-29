@@ -4,7 +4,7 @@ import type { StageFn } from "./runStage";
 
 // The Locator finds the venue itself in Qloo's catalogue. Having it means the Scout can ask "what does
 // this venue's own crowd love". Not having it is fine: the run reads the neighbourhood instead.
-// Matching is plain code (docs/QLOO_API.md quirk 4: place searches return look-alikes such as a record
+// Matching is plain code (place searches return look-alikes such as a record
 // store with the same name), so the result is explainable and tested.
 
 export type VenueInput = {

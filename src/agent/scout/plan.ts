@@ -7,7 +7,7 @@ import type { AreaSpec } from "@/src/qloo/endpoints";
 export const SCOUT_DOMAINS = ["artist", "movie", "tv_show", "book", "podcast"] as const;
 export type ScoutDomain = (typeof SCOUT_DOMAINS)[number];
 
-// What the plan scans for each kind of venue, most relevant first (PRODUCT_SPEC section 4). Five domains each,
+// What the plan scans for each kind of venue, most relevant first. Five domains each,
 // so the pool has at least four strong ones even when one comes back thin.
 const PLANS: Record<string, readonly ScoutDomain[]> = {
   bookstore: ["book", "podcast", "movie", "artist", "tv_show"],

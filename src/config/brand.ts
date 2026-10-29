@@ -3,7 +3,7 @@ export const APP_NAME = "Kindling";
 export const TAGLINE = "Where strangers become regulars.";
 export const REPO_URL = "https://github.com/sahil-makandar/kindling";
 
-// Same values as the Tailwind tokens in docs/DESIGN_SYSTEM.md.
+// Same values as the Tailwind tokens in app/globals.css.
 // Exported for places CSS variables cannot reach, such as the poster PNG export.
 export const COLORS = {
   paper: "#FFF7EC",

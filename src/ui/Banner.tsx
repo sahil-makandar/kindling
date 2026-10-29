@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { cx } from "./cx";
 
 // "fixture": full-width strip shown when the app runs on recorded sample data.
-// "simulated": dotted box around any simulated numbers (CLAUDE.md section 11).
+// "simulated": dotted box around any simulated numbers.
 export function Banner({
   variant,
   children,

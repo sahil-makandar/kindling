@@ -3,7 +3,7 @@ import type { ClubFormat, PoolRef } from "../designer/candidates";
 import type { PoolSignal } from "../scout/pool";
 import { friendlyName, isColdName } from "../naming";
 
-// The Producer's pure logic (PRODUCT_SPEC section 9): the kit schema, how the model's answer is cleaned and checked,
+// The Producer's pure logic: the kit schema, how the model's answer is cleaned and checked,
 // the playlist (chosen by code from the pool, never by the model), the licence note, and a plain fallback kit so a
 // rate-limited model never leaves a club without a kit.
 

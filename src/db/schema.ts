@@ -14,7 +14,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-// Schema follows docs/PRODUCT_SPEC.md section 7, plus geocode_cache (BUILD_PLAN F4).
+// One table per thing the app stores: venues, runs, trace, Qloo calls, signals, candidates, clubs, sessions, attendees,
+// check-ins and recommendations, plus the geocode and Qloo caches.
 // Short fixed vocabularies are plain text columns typed with a union, which keeps
 // migrations simple (no Postgres enums to alter).
 

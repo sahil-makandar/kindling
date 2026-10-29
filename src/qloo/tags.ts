@@ -3,7 +3,7 @@ import type { AreaSpec, Endpoints, GeoArea } from "./endpoints";
 import { placeCoordinates, tagTypeWeight, type QlooEntity, type QlooHeatPoint, type QlooTag } from "./schemas";
 import type { QlooContext } from "./client";
 
-// Qloo's official filter.type list has no urn:tag or urn:heatmap (docs/QLOO_API.md section 0). We try them,
+// Qloo's official filter.type list has no urn:tag or urn:heatmap. We try them,
 // because they may work, but everything that needs them has a fallback built from supported data: the tags
 // carried by entities, and the coordinates of places. A 403 means unsupported; we then stop asking.
 

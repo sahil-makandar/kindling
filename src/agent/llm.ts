@@ -15,7 +15,7 @@ import { createDbLlmStore, type LlmStore } from "./llmStore";
 import { resolveProviders, type CallProviderOptions, type LlmTier, type ProviderEntry } from "./llmProviders";
 import type { Tracer } from "./trace";
 
-// The only place that talks to a language model. Rules (CLAUDE.md section 5): few small calls, never on page
+// The only place that talks to a language model. Rules: few small calls, never on page
 // views, every answer cached per run, back off when rate limited, then try the fallback provider, then give
 // the caller a chance to use its deterministic plan so a busy model never breaks a run.
 

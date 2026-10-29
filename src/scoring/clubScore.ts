@@ -1,6 +1,6 @@
 import type { ClubFormat } from "@/src/agent/designer/candidates";
 
-// The club score (PRODUCT_SPEC section 5.2): a transparent, deterministic 0 to 100. Every component is a value
+// The club score: a transparent, deterministic 0 to 100. Every component is a value
 // from 0 to 1 with a plain-English reason and the Qloo calls it came from, so the page can show exactly why a club
 // ranks where it does. Everything here is a pure function; the Verifier stage gathers the inputs.
 
@@ -47,7 +47,7 @@ const round = (n: number, places: number) => {
   return Math.round(n * f) / f;
 };
 
-// ---- format fit (PRODUCT_SPEC section 5.3) ----
+// ---- format fit ----
 
 export const FORMAT_FIT: Record<string, Record<ClubFormat, number>> = {
   cafe: { discussion_club: 0.9, listening_night: 0.7, book_club: 0.9, game_night: 0.7, trivia_night: 0.6, fan_meetup: 0.8, tasting: 0.7 },
